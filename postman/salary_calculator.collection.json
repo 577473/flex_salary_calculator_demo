@@ -1,0 +1,210 @@
+{
+  "info": {
+    "name": "Flex Salary Calculator API",
+    "_postman_id": "0a6f857d-8c2e-4a1e-9d3a-5f2c7b1e9c40",
+    "description": "REST API for the flexible monthly salary calculator demo. Import this collection, set the `baseUrl` variable to the running Rails server (default http://localhost:3000), and switch periods with the `period` variable. Per-employee failures are returned inside the envelope with stable codes (see docs/API.md).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "period",
+      "value": "2026-09"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "health"]
+        },
+        "description": "Liveness check. Expected 200 `{\"status\":\"ok\"}`."
+      }
+    },
+    {
+      "name": "List Employees",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/employees",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "employees"]
+        },
+        "description": "List all employees."
+      }
+    },
+    {
+      "name": "Get Employee",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/employees/1",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "employees", "1"]
+        },
+        "description": "Get one employee with job history."
+      }
+    },
+    {
+      "name": "Calculate Payroll",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"employee_ids\": [1, 2, 3, 4],\n  \"period\": \"{{period}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/liquidaciones/calculate",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "liquidaciones", "calculate"]
+        },
+        "description": "Calculate and persist Liquidaciones for the given employees and period. Idempotent upsert (FR-007); per-employee failures are reported with stable codes in the envelope (FR-014)."
+      }
+    },
+    {
+      "name": "List Liquidaciones",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/liquidaciones?period={{period}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "liquidaciones"],
+          "query": [
+            {
+              "key": "period",
+              "value": "{{period}}"
+            }
+          ]
+        },
+        "description": "List Liquidaciones for a period (amounts as integer cents)."
+      }
+    },
+    {
+      "name": "Get Liquidacion",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/liquidaciones/1",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "liquidaciones", "1"]
+        },
+        "description": "Get a Liquidacion with its per-item audit breakdown, grouped by category."
+      }
+    },
+    {
+      "name": "Error examples",
+      "item": [
+        {
+          "name": "Calculate Payroll — missing employee_ids (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"period\": \"{{period}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/liquidaciones/calculate",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "liquidaciones", "calculate"]
+            },
+            "description": "Expected 400 problem+json: `employee_ids` is required."
+          }
+        },
+        {
+          "name": "Calculate Payroll — invalid period (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employee_ids\": [1],\n  \"period\": \"2026-13\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/liquidaciones/calculate",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "liquidaciones", "calculate"]
+            },
+            "description": "Expected 400 problem+json: `period` month must be between 01 and 12."
+          }
+        },
+        {
+          "name": "Calculate Payroll — all unknown employees (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employee_ids\": [9999, 10000],\n  \"period\": \"{{period}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/liquidaciones/calculate",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "liquidaciones", "calculate"]
+            },
+            "description": "Expected 422 problem+json: none of the requested employees exist."
+          }
+        },
+        {
+          "name": "List Liquidaciones — missing period (400)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/liquidaciones",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "liquidaciones"]
+            },
+            "description": "Expected 400 problem+json: `period` is required."
+          }
+        },
+        {
+          "name": "Get Liquidacion — unknown id (404)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/liquidaciones/9999",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "liquidaciones", "9999"]
+            },
+            "description": "Expected 404 problem+json."
+          }
+        }
+      ]
+    }
+  ]
+}

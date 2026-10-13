@@ -1,0 +1,27 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+
+# Temp/logs
+*.tmp
+*.log
+*.swp
+
+# Ruby (backend)
+backend/.bundle/
+backend/log/
+backend/tmp/
+backend/storage/
+backend/coverage/
+backend/.rubocop_cache/
+backend/vendor/bundle/
+frontend/node_modules/
+frontend/dist/
+
+# Env
+.env
+.env.local
