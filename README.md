@@ -71,6 +71,95 @@ curl -X POST http://localhost:3000/api/v1/liquidaciones/calculate \
 curl "http://localhost:3000/api/v1/liquidaciones?period=2026-09"
 ```
 
+## Sample: inspect the core calculation (no server, no database)
+
+`backend/scripts/sample_calculation.rb` is a small, self-contained program for
+reading and understanding the salary core in action. It uses the **real**
+`Employee` / `Job` / `AsignacionTemplate` / `Liquidacion` / `Asignacion` models
+and the **real** `CalculateLiquidacion` service, driven by sample data defined
+in the script itself.
+
+- **No dev database, no `db:prepare`, no migrations, no seeds, no web server.**
+  It spins up a throwaway **in-memory** SQLite just to back the ActiveRecord
+  models; nothing is written to disk and it disappears when the script exits.
+- **Minimal sample data** (edit it freely): one Argentina employee (Ana García,
+  base 1,200,000 cents) and one Uruguay employee (Camila Díaz, 900,000 cents),
+  plus the same 7-item AR/UY formula catalog the app seeds (salario base, bono,
+  aguinaldo, extra horas, descuento legal, descuento previsional, aporte
+  empleador).
+- It calls `CalculateLiquidacion.call(employee_ids:, period:)`, then prints the
+  persisted per-item audit breakdown and the totals for each employee.
+
+### Usage
+
+Run from the `backend/` directory, or just run the file from your IDE with the
+working directory set to `backend/` (no other setup required):
+
+```bash
+cd backend
+bundle exec ruby scripts/sample_calculation.rb            # period 2026-03
+bundle exec ruby scripts/sample_calculation.rb 2026-06    # any YYYY-MM
+```
+
+The single argument is the period in `YYYY-MM` form; it defaults to `2026-03`.
+Try `2026-06` (Extra horas activates) or `2026-12` (Aguinaldo activates) to see
+the conditional formulas change the totals.
+
+### Sample output
+
+```text
+Salary calculation for period 2026-03
+================================================================================
+Ana García  (job: AR, base salary 1,200,000 cents)
+--------------------------------------------------------------------------------
+  CATEGORY   ITEM                     FORMULA                                                        AMOUNT
+  haber      Salario base             base_salary                                                 1,200,000
+  haber      Bono fijo                25000                                                          25,000
+  haber      Aguinaldo                period_month == 12 ? round(base_salary / 2) : 0                     0
+  haber      Extra horas              period_month == 6 ? round(base_salary * 0.1) : 0                    0
+  descuento  Descuento legal          round(base_salary * (country == "AR" ? 0.17 : 0.15))          204,000
+  descuento  Descuento previsional    round(haberes_totales * 0.03)                                  36,750
+  aporte     Aporte empleador         round(base_salary * (country == "AR" ? 0.29 : 0.23))          348,000
+--------------------------------------------------------------------------------
+  haberes_totales_cents                                         1,225,000
+  descuentos_totales_cents                                        240,750
+  aportes_totales_cents (employer-side)                           348,000
+  final_salary_cents (haberes - descuentos)                       984,250
+
+Camila Díaz  (job: UY, base salary 900,000 cents)
+  ... (same breakdown; UY rates 15%/23% give final 762,250)
+
+All amounts are integer cents. Data was in-memory only; nothing was persisted.
+```
+
+### Calling the core directly
+
+The same entry point the API uses is a one-liner. In a console
+(`cd backend && bin/rails console`) against the seeded dev data:
+
+```ruby
+ids = Employee.pluck(:id)                              # or [1, 2, 3, 4]
+results = CalculateLiquidacion.call(employee_ids: ids, period: "2026-03")
+
+results[:results].each do |r|
+  if r[:status] == "success"
+    l = Liquidacion.find(r[:liquidacion][:id])
+    puts "#{l.employee.name}: final #{l.final_salary_cents} cents"
+  else
+    puts "failed: #{r[:error][:code]} — #{r[:error][:detail]}"
+  end
+end
+```
+
+Inside `scripts/sample_calculation.rb` the in-memory sample handles
+(`ana`, `camila`) are available, so you can call
+`CalculateLiquidacion.call(employee_ids: [ana.id, camila.id], period: "2026-03")`
+directly.
+
+Note: `CalculateLiquidacion` persists results, so the console call above writes
+to the dev database. Use the sample script for an isolated, side-effect-free
+run.
+
 ## Tests
 
 ```bash
@@ -90,7 +179,8 @@ cd frontend && npm run test
 
 The backend suite asserts hand-computed golden values (never values derived
 from the implementation). Coverage minimum is enforced by `.simplecov` during
-`rspec`.
+`rspec`. For a high-level view of what each suite covers, see
+[docs/TESTS.md](docs/TESTS.md).
 
 ## Postman
 
@@ -104,7 +194,9 @@ All 6 requests plus error examples are included.
 |-----|----------|
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Components, request flows, separation of concerns, seeds |
 | [docs/API.md](docs/API.md) | Full REST contract: every endpoint, errors, failure codes |
+| [docs/TESTS.md](docs/TESTS.md) | High-level test map (what each suite/area verifies) + how to regenerate |
 | [docs/VALIDATION.md](docs/VALIDATION.md) | End-to-end quickstart outcomes vs SC-001..SC-007 |
+| [backend/scripts/sample_calculation.rb](backend/scripts/sample_calculation.rb) | Runnable in-memory sample of the core calculation |
 | [postman/salary_calculator.collection.json](postman/salary_calculator.collection.json) | Importable collection |
 | `specs/001-monthly-salary-calculator/` | Spec, plan, data model, CEL contract, tasks |
 
