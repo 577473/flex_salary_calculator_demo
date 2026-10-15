@@ -1,0 +1,35 @@
+# Omakase Ruby styling for Rails
+inherit_gem: { rubocop-rails-omakase: rubocop.yml }
+
+# Overwrite or add rules to create your own house style
+AllCops:
+  Exclude:
+    - 'db/schema.rb'
+    - 'bin/**/*'
+    - 'vendor/**/*'
+    - 'node_modules/**/*'
+
+# RSpec cops for the backend test suite (needs rubocop-rspec)
+require:
+  - rubocop-rails
+  - rubocop-rspec
+
+# Paired assertions (invalid record + targeted error presence) are idiomatic here.
+RSpec/MultipleExpectations:
+  Enabled: false
+
+# Behavior specs for services exercise real contracts and need room to assert many fields.
+RSpec/ExampleLength:
+  Enabled: false
+
+# Descriptive contexts (e.g. "Ana (AR, base 1_200_000)") carry scenario data, not just prefixes.
+RSpec/ContextWording:
+  Enabled: false
+
+RSpec/MultipleMemoizedHelpers:
+  Max: 8
+
+# Top-level golden/end-to-end specs describe scenarios, not a single class.
+RSpec/DescribeClass:
+  Exclude:
+    - 'spec/golden/**/*'
