@@ -35,8 +35,10 @@
 ## Notes
 
 - All items pass (validation iteration 1).
-- Open items intentionally routed to `/speckit.clarify`: confirm
-  `final_salary = haberes - descuentos - aportes` composition rule and item
-  applicability scoping (both documented as assumptions, not blockers).
+- Items previously routed to `/speckit.clarify` are resolved in spec.md:
+  composition rule is `final_salary = haberes - descuentos` (aportes are
+  employer-side and reported, not deducted) and item applicability is scoped by
+  the item's category + effective period range, with the employee's Job country
+  passed into the formula (Session 2026-10-14).
 - Per-item breakdown storage (FR-009) extends the user-specified schema; exact
   shape deferred to `/speckit.plan`.

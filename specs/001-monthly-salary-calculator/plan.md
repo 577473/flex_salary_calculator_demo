@@ -21,7 +21,7 @@ covered by tests (RSpec + Vitest).
 
 ## Technical Context
 
-**Language/Version**: Ruby 3.3+ / Rails 7.2; JavaScript (Vue 3, Vite) for the SPA
+**Language/Version**: Ruby 3.3+ (developed on 4.0.7) / Rails 8.1 (API-only); JavaScript (Vue 3, Vite) for the SPA
 
 **Primary Dependencies**: backend — `cel` (CEL evaluator) 0.6.1+, `rack-cors`,
 `sqlite3`, `puma`; test: `rspec-rails`, `factory_bot_rails`, `faker`, `shoulda-matchers`.
@@ -53,7 +53,7 @@ deterministic results (SC-002); explicit failure instead of silent rules
 | Principle | Status | Notes |
 |-----------|--------|-------|
 | I. Radical Candor: Verified Truth Only | PASS | No simulated integrations; every claim backed by tests (CI). |
-| II. Legislation-Driven Isolation | PASS | Country-scoped AsignacionTemplate selection; explicit error when no rule matches; money in Integer cents; no silent cross-country fallback. |
+| II. Legislation-Driven Isolation | PASS | Rules isolated per item expression; `country` passed as a formula input; explicit refusal for unsupported jurisdictions; money in Integer cents; no silent cross-country fallback. |
 | III. Test-First (NON-NEGOTIABLE) | PASS | RSpec/Vitest; golden-value tests per formula type and jurisdiction; red-green-refactor. |
 | IV. Rails Convention & Specialist Guidance | PASS w/ deviation | Rails API conventions + service objects followed (per constitution). Deviation: Vue SPA instead of Hotwire UI — user-mandated; see Complexity Tracking. |
 | V. Auditability & Observability | PASS | Per-liquidacion Asignacion snapshot rows keep formula+version+amount; structured logs; no PII in logs. |
@@ -80,7 +80,7 @@ specs/001-monthly-salary-calculator/
 ### Source Code (repository root)
 
 ```text
-backend/                # Rails 7.2 API-only app
+backend/                # Rails 8.1 API-only app
 ├── app/
 │   ├── controllers/api/v1/   # employees, liquidaciones
 │   ├── models/               # Employee, Job, Liquidacion, Asignacion, AsignacionTemplate
@@ -110,7 +110,7 @@ Procfile
 ```
 
 **Structure Decision**: Option 2 (web application: frontend + backend).
-`backend/` is a Rails 7.2 API-only app; `frontend/` is the Vue 3/Vite SPA;
+`backend/` is a Rails 8.1 API-only app; `frontend/` is the Vue 3/Vite SPA;
 `postman/` ships the importable collection; `docs/` holds project/architecture/
 API documentation. Shared implementation context under a single feature spec.
 

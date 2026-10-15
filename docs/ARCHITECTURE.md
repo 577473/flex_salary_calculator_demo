@@ -38,23 +38,29 @@ Everything runs locally on the developer machine.
   - `employee_serializer.rb`, `liquidacion_serializer.rb`,
     `envelope_serializer.rb` (stable per-employee failure codes).
 - Models (`app/models/`): `Employee`, `Job` (time-effective contract
-  conditions), `AsignacionTemplate` (country + category + effective-range rule
-  with a CEL formula), `Liquidacion` (unique per employee+period, totals),
-  `Asignacion` (per-item audit snapshot: formula, version, amount, category).
+  conditions), `AsignacionTemplate` (category + effective-range rule with a CEL
+  formula that may read the bound `country`), `Liquidacion` (unique per
+  employee+period; totals are nullable until calculated → `pending?`),
+  `Asignacion` (per-item line: created with formula/version/category/position,
+  `amount_cents` filled in by the calculator → `calculated?`).
 - Services (`app/services/`) — the domain core, tested in isolation:
   - `period_resolver.rb` — pick the unique Job covering `(employee, year, month)`
     (`nil` = no contract → `no_job_for_period`).
-  - `item_selector.rb` — filter templates by country + effective range,
-    ordered `haber → descuento → aporte` then `position`.
+  - `item_selector.rb` — filter templates by effective range,
+    ordered `haber → descuento → aporte` then `effective_from`/`id`. Retained as
+    the selection rule; used by the seeds as the **upstream stand-in**, not by
+    the calculator.
   - `cel_evaluator.rb` — wrap the `cel` gem; compile/check/evaluate each
     formula; `round`/`min`/`max` extensions; enforce integer money result;
     cache compiled expressions by formula text.
-  - `calculate_liquidacion.rb` — orchestrate: resolve job, select items, bind
-    variables (`name`, `country`, `base_salary`, `period_year`,
-    `period_month`; running `haberes_totales` / `descuentos_totales` /
-    `aportes_totales`), evaluate in category order, **upsert** the Liquidacion
-    (unique employee+period) + rebuild Asignacion snapshots in one transaction,
-    return the per-employee envelope.
+  - `calculate_liquidacion.rb` — orchestrate: **find the already-prepared
+    Liquidacion + its Asignacion rows** (empty ⇒ `no_applicable_items`), resolve
+    job, refuse unsupported jurisdictions, bind variables (`name`, `country`,
+    `base_salary`, `period_year`, `period_month`; running `haberes_totales` /
+    `descuentos_totales` / `aportes_totales`), evaluate the stored rows' formulas
+    in category order, write each `amount_cents`, then derive the Liquidacion
+    totals **from the stored rows** in one transaction; return the per-employee
+    envelope. It never creates items.
 
 ### 2. CEL evaluator wrapper
 
@@ -78,10 +84,11 @@ Domain-critical. Exposes a tiny, auditable surface over `cel`:
 - `src/stores/payroll.js` — Pinia store: period, employees, results
   (success/`failure` with codes), list, detail.
 - `src/views/` — `EmployeesView`, `PayrollView` (period form + calculate +
-  results list), `LiquidacionDetailView` (totals + grouped per-item breakdown;
-  explicit "not calculated" state, no fake zeros).
+  results list; pending rows flagged), `LiquidacionDetailView` (totals + grouped
+  per-item breakdown; explicit "pending"/"not calculated" state, no fake zeros).
 - `src/router/index.js` — `/`, `/payroll`, `/payroll/:id`.
-- `src/utils/money.js` — `es-AR` integer-cent formatting.
+- `src/utils/money.js` — `es-AR` integer-cent formatting; `null`/`undefined`
+  render as `—` (pending), never as `$0.00`.
 
 ### 4. SQLite storage
 
@@ -109,12 +116,13 @@ POST /api/v1/liquidaciones/calculate {"employee_ids":[...], "period":"YYYY-MM"}
   │
   ├─ CalculateLiquidacion.call(employee_ids, period)
   │     for each employee:
-  │       period_resolver.resolve(employee, period)      → nil? no_job_for_period
-  │       item_selector.select(employee.country, period) → empty? no_applicable_items
-  │       for each item (haber→descuento→aporte, position):
-  │         cel_evaluator.evaluate(formula, bindings, running_subtotals)
-  │             → formula_invalid | formula_error | amount_cents
-  │       upsert Liquidacion + rebuild Asignaciones (one transaction)
+  │       liquidacion = Liquidacion.find_by(employee, period)   → none/empty? no_applicable_items
+  │       period_resolver.resolve(employee, period)            → nil? no_job_for_period
+  │       supported_jurisdiction?(job.country)                → false? unsupported_jurisdiction
+  │       for each prepared Asignacion (haber→descuento→aporte, position):
+  │         cel_evaluator.evaluate(row.formula, bindings, running_subtotals)
+  │             → formula_invalid | formula_error | row.amount_cents
+  │       persist row amounts; derive totals FROM stored rows (one transaction)
   │
   └─ EnvelopeSerializer.envelope(results)
        { results: [ { employee_id, status: success,
@@ -122,9 +130,13 @@ POST /api/v1/liquidaciones/calculate {"employee_ids":[...], "period":"YYYY-MM"}
                       error: { code, detail } } ] }
 ```
 
-Failures are per-employee: one broken employee never blocks the batch
-(FR-014), and a failing item aborts that employee's Liquidacion with **no**
-partial record persisted (FR-008).
+The run and its items are created by an **upstream step** (outside the
+calculator): an empty Liquidacion plus one Asignacion per applicable item,
+carrying formula/category/position and null amounts. In this repo, `db/seeds.rb`
+and the spec helper stand in for that step. Failures are per-employee: one broken
+employee never blocks the batch (FR-014), and a failing item aborts that
+employee's calculation with **no** partial amounts or totals persisted (FR-008) —
+the run stays pending.
 
 ### Fetch results (read path)
 
@@ -148,6 +160,7 @@ GET /api/v1/liquidaciones/1
 | Presentation shape  | `app/serializers/*` (money = integer `_cents`) |
 | Domain orchestration| `CalculateLiquidacion`                          |
 | Contract resolution | `PeriodResolver`, `ItemSelector`               |
+| Run/item preparation| Upstream step; seeds + spec helper stand in     |
 | Formula evaluation  | `CelEvaluator` (cel gem, whitelisted helpers)  |
 | Persistence/audit   | Models + migrations; snapshot `Asignacion` rows|
 | Client state & UI   | Pinia store, `views/*`, `services/api.js`      |
@@ -157,37 +170,51 @@ serializers never compute money; formulas are data (CEL), never code.
 
 ## Seeds overview (`backend/db/seeds.rb`, idempotent)
 
-4 employees (synthetic names — no real-person PII), 2 countries, 14 templates:
+4 employees (synthetic names — no real-person PII), 2 countries, 7 templates
+(one catalog; country gates inside the formulas):
 
-- `Ana García` (AR, 1,200,000) — single job from 2025-01-01.
-- `Bruno Sosa` (AR, 1,000,000 → 1,100,000) — mid-year raise at 2026-07-01.
-- `Camila Díaz` (UY, 900,000) — single job.
-- `Diego Araújo` (UY, 800,000 → 850,000) — mid-year raise at 2026-07-01.
+- `Ana García` (AR, 120,000,000) — single job from 2025-01-01.
+- `Bruno Sosa` (AR, 100,000,000 → 110,000,000) — mid-year raise at 2026-07-01.
+- `Camila Díaz` (UY, 6,000,000) — single job.
+- `Diego Araújo` (UY, 5,000,000 → 5,500,000) — mid-year raise at 2026-07-01.
 
-Template catalog (same set for AR and UY; country gates inside formulas):
+(base salaries in integer cents — approximate middle-class monthly gross in each
+country's local currency)
+
+Single item catalog (not duplicated per country; country gates inside formulas):
 
 | Description        | Category  | Formula |
 |--------------------|-----------|---------|
 | Salario base       | haber     | `base_salary` |
-| Bono fijo          | haber     | `25000` |
+| Bono fijo          | haber     | `country == "AR" ? 5000000 : 250000` |
 | Aguinaldo          | haber     | `period_month == 12 ? round(base_salary / 2) : 0` |
 | Extra horas        | haber     | `period_month == 6 ? round(base_salary * 0.1) : 0` |
 | Descuento legal    | descuento | `round(base_salary * (country == "AR" ? 0.17 : 0.15))` |
 | Descuento previsional | descuento | `round(haberes_totales * 0.03)` |
 | Aporte empleador   | aporte    | `round(base_salary * (country == "AR" ? 0.29 : 0.23))` |
 
-The catalog exercises every formula type in `contracts/cel.md`: literal,
-reference, arithmetic, conditional/ternary, country-dependent, and
-subtotal-dependent (`haberes_totales`) expressions, plus `round`.
+The catalog exercises the formula types in `contracts/cel.md`: reference,
+arithmetic, conditional/ternary, country-dependent, and subtotal-dependent
+(`haberes_totales`) expressions, plus `round`; integer literals appear inside
+these formulas, and pure-literal evaluation is covered by `cel_evaluator_spec.rb`.
+
+Seeding also **prepares a pending run** for every employee and every month from
+2025-01 to 2026-12: an empty Liquidacion plus one Asignacion per applicable item
+(selection via `ItemSelector`), with null amounts. This stands in for the
+upstream step that owns run creation. Re-seeding only refreshes runs that are new
+or still pending — it never rewrites a calculated run (FR-009 keeps history).
 
 ## Consistency & invariants
 
 - Money: integer cents only; no floats cross the API or storage boundary
   (enforced by the evaluator, serializers, and request specs).
-- Idempotency: unique `[employee_id, period_year, period_month]` + upsert, so
-  repeat calculation yields identical totals and no duplicate rows (SC-002).
-- Persisted audit trail: each `Asignacion` snapshot stores `formula`,
-  `formula_version`, category and amount — the UI and API detail render from
-  this trail, not from recomputation (FR-009).
+- Idempotency: unique `[employee_id, period_year, period_month]` + filling the
+  same prepared rows, so repeat calculation yields identical totals and no
+  duplicate rows (SC-002).
+- Two-state lifecycle: a run is *pending* until calculated (null totals/amounts)
+  and *calculated* afterwards (all totals set, all-or-none).
+- Persisted audit trail: each `Asignacion` stores `formula`,
+  `formula_version`, category, position and amount — the UI and API detail render
+  from this trail, not from recomputation (FR-009).
 - Determinism: a given (employee, period) always produces the same Liquidacion
   (SC-002), validated by golden-value specs.

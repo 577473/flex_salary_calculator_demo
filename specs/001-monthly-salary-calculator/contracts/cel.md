@@ -47,10 +47,10 @@ Determinism (SC-002): same bindings + same formula ⇒ same output.
 |-------------|----------|---------|
 | Base salary | haber | `base_salary` |
 | Extra hours | haber | `period_month == 6 ? round(base_salary * 0.1) : 0` |
-| Fixed bonus | haber | `25000` |
+| Fixed bonus (country-dep.) | haber | `country == "AR" ? 5000000 : 250000` |
 | Aguinaldo (Dec) | haber | `period_month == 12 ? round(base_salary / 2) : 0` |
 | Legal discount (country-dep.) | descuento | `round(base_salary * (country == "AR" ? 0.17 : 0.15))` |
-| Legal discount (% of earnings) | descuento | `round(haberes_totales * 0.03)` |
+| Pension discount (% of earnings) | descuento | `round(haberes_totales * 0.03)` |
 | Employer aporte | aporte | `round(base_salary * (country == "AR" ? 0.29 : 0.23))` |
 
 ## Failure semantics

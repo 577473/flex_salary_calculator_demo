@@ -5,7 +5,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { nextTick } from 'vue'
 import PayrollView from '../../src/views/PayrollView.vue'
 import { usePayrollStore } from '../../src/stores/payroll'
-import { formatMoney } from '../../src/utils/money'
+import { formatMoney, PENDING_PLACEHOLDER } from '../../src/utils/money'
 
 vi.mock('../../src/services/api', () => ({
   getEmployees: vi.fn(),
@@ -111,6 +111,38 @@ describe('PayrollView (list)', () => {
     expect(wrapper.find('[data-testid="empty-state"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="results"]').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('$')
+  })
+
+  it('marks a not-yet-calculated run as pending and renders dashes instead of fake zeros', async () => {
+    getEmployees.mockResolvedValue([{ id: 1, name: 'Ana García' }])
+    calculatePayroll.mockResolvedValue([
+      { employee_id: 1, status: 'success', liquidacion: { url: '/api/v1/liquidaciones/10' } }
+    ])
+    getLiquidaciones.mockResolvedValue([
+      {
+        id: 10,
+        employee_id: 1,
+        name: 'Ana García',
+        period: '2026-09',
+        pending: true,
+        haberes_totales_cents: null,
+        descuentos_totales_cents: null,
+        aportes_totales_cents: null,
+        final_salary_cents: null
+      }
+    ])
+
+    const wrapper = mountView()
+    await flush()
+
+    await wrapper.get('input').setValue('2026-09')
+    await wrapper.get('form').trigger('submit')
+    await flush()
+
+    expect(wrapper.find('[data-testid="pending-badge"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain(PENDING_PLACEHOLDER)
+    expect(wrapper.text()).not.toContain('$0,00')
+    expect(wrapper.text()).not.toContain('$0.00')
   })
 
   it('blocks calculation when no period is selected', async () => {

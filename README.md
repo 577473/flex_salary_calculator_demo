@@ -8,6 +8,10 @@ running-subtotal items — evaluates them in Ruby, persists results idempotently
 with a per-item audit breakdown, and exposes them via a **REST API**, a **Vue 3
 SPA**, and an importable **Postman collection**.
 
+A payroll run is **prepared upstream** (an empty Liquidacion + one item per
+applicable rule); the calculator evaluates the stored formulas, writes each
+item's amount, and derives the totals from those rows.
+
 - Money is always **integer cents** (`_cents`) — never floats.
 - Recalculation is deterministic and idempotent per employee + period.
 - Explicit errors, never silent/wrong zeros.
@@ -33,8 +37,8 @@ SPA**, and an importable **Postman collection**.
 # Backend (Rails API)
 cd backend
 bundle install
-bin/rails db:prepare        # creates SQLite db + schema + seeds
-bin/rails server            # http://localhost:3000
+ruby bin/rails db:prepare   # creates SQLite db + schema + seeds
+ruby bin/rails server       # http://localhost:3000
 
 # Frontend (Vue SPA) — second terminal
 cd frontend
@@ -42,8 +46,19 @@ npm install
 npm run dev                 # http://localhost:5173
 ```
 
-`bin/rails db:prepare` seeds 4 employees (2 with mid-year salary changes) and
-AR/UY formula templates. Seeding is idempotent — safe to rerun.
+> **Windows:** always call binstubs through Ruby — `ruby bin/rails …`,
+> `ruby bin/rake …`, `ruby bin/brakeman …`. Running a bare `bin/rails` makes
+> Windows try to *open* the file (it's a Ruby shebang script, not an `.exe`) and
+> pops up a "choose an app" dialog.
+>
+> **macOS/Linux:** the `ruby bin/rails …` form works too. You can also use
+> `./bin/rails …` directly (the script is executable there).
+
+`ruby bin/rails db:prepare` seeds 4 employees (2 with mid-year salary changes),
+one country-aware item-formula catalog, and a **pending payroll run** (empty
+Liquidacion + one item per applicable rule) for every employee for every month
+in 2025-01..2026-12. The calculator then fills those runs — it never creates the
+items itself. Seeding is idempotent — safe to rerun.
 
 ### Alternative: run both with the Procfile
 
@@ -83,11 +98,15 @@ in the script itself.
   It spins up a throwaway **in-memory** SQLite just to back the ActiveRecord
   models; nothing is written to disk and it disappears when the script exits.
 - **Minimal sample data** (edit it freely): one Argentina employee (Ana García,
-  base 1,200,000 cents) and one Uruguay employee (Camila Díaz, 900,000 cents),
-  plus the same 7-item AR/UY formula catalog the app seeds (salario base, bono,
+  base 120,000,000 cents = 1,200,000 ARS) and one Uruguay employee (Camila Díaz,
+  6,000,000 cents = 60,000 UYU) — approximate middle-class monthly gross
+  salaries in each country's local currency — plus the same 7-item country-aware
+  formula catalog the app seeds (salario base, bono,
   aguinaldo, extra horas, descuento legal, descuento previsional, aporte
   empleador).
-- It calls `CalculateLiquidacion.call(employee_ids:, period:)`, then prints the
+- It prepares the run first (an empty `Liquidacion` plus one `Asignacion` per
+  catalog item — standing in for the upstream step that owns item creation), then
+  calls `CalculateLiquidacion.call(employee_ids:, period:)`, and prints the
   persisted per-item audit breakdown and the totals for each employee.
 
 ### Usage
@@ -109,25 +128,25 @@ the conditional formulas change the totals.
 
 ```text
 Salary calculation for period 2026-03
-================================================================================
-Ana García  (job: AR, base salary 1,200,000 cents)
---------------------------------------------------------------------------------
+================================================================================================================
+Ana García  (job: AR, base salary 120,000,000 cents)
+----------------------------------------------------------------------------------------------------------------
   CATEGORY   ITEM                     FORMULA                                                        AMOUNT
-  haber      Salario base             base_salary                                                 1,200,000
-  haber      Bono fijo                25000                                                          25,000
+  haber      Salario base             base_salary                                               120,000,000
+  haber      Bono fijo                country == "AR" ? 5000000 : 250000                          5,000,000
   haber      Aguinaldo                period_month == 12 ? round(base_salary / 2) : 0                     0
   haber      Extra horas              period_month == 6 ? round(base_salary * 0.1) : 0                    0
-  descuento  Descuento legal          round(base_salary * (country == "AR" ? 0.17 : 0.15))          204,000
-  descuento  Descuento previsional    round(haberes_totales * 0.03)                                  36,750
-  aporte     Aporte empleador         round(base_salary * (country == "AR" ? 0.29 : 0.23))          348,000
---------------------------------------------------------------------------------
-  haberes_totales_cents                                         1,225,000
-  descuentos_totales_cents                                        240,750
-  aportes_totales_cents (employer-side)                           348,000
-  final_salary_cents (haberes - descuentos)                       984,250
+  descuento  Descuento legal          round(base_salary * (country == "AR" ? 0.17 : 0.15))       20,400,000
+  descuento  Descuento previsional    round(haberes_totales * 0.03)                               3,750,000
+  aporte     Aporte empleador         round(base_salary * (country == "AR" ? 0.29 : 0.23))       34,800,000
+----------------------------------------------------------------------------------------------------------------
+  haberes_totales_cents                                       125,000,000
+  descuentos_totales_cents                                     24,150,000
+  aportes_totales_cents (employer-side)                        34,800,000
+  final_salary_cents (haberes - descuentos)                   100,850,000
 
-Camila Díaz  (job: UY, base salary 900,000 cents)
-  ... (same breakdown; UY rates 15%/23% give final 762,250)
+Camila Díaz  (job: UY, base salary 6,000,000 cents)
+  ... (same breakdown; UY rates 15%/23% give final 5,162,500)
 
 All amounts are integer cents. Data was in-memory only; nothing was persisted.
 ```
@@ -135,7 +154,7 @@ All amounts are integer cents. Data was in-memory only; nothing was persisted.
 ### Calling the core directly
 
 The same entry point the API uses is a one-liner. In a console
-(`cd backend && bin/rails console`) against the seeded dev data:
+(`cd backend && ruby bin/rails console`) against the seeded dev data:
 
 ```ruby
 ids = Employee.pluck(:id)                              # or [1, 2, 3, 4]
@@ -167,13 +186,13 @@ run.
 cd backend && bundle exec rspec
 
 # Backend — static analysis
-cd backend && bundle exec rubocop && bin/brakeman -q
+cd backend && bundle exec rubocop && ruby bin/brakeman -q
 
 # Frontend — Vitest component flows
 cd frontend && npm run test
 
 # Full CI-equivalent check
-cd backend && bundle exec rspec && bundle exec rubocop && bin/brakeman -q && bundle exec bundler-audit check --update
+cd backend && bundle exec rspec && bundle exec rubocop && ruby bin/brakeman -q && bundle exec bundler-audit check --update
 cd frontend && npm run test
 ```
 

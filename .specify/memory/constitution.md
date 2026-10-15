@@ -15,6 +15,18 @@ Sync Impact Report
   - Governance (filled with amendment, versioning, and review rules)
 - Removed sections: none
 - Follow-up TODOs: none (all placeholders resolved)
+- Amendment 1.0.0 -> 1.1.0 (2026-10-14):
+  - Modified principle: II. Legislation-Driven Calculation Isolation — rules are
+    isolated per calculation item, with each item's expression carrying its own
+    rule and any jurisdiction dependence via explicit bindings; country is no
+    longer a per-item database scope. Explicit refusal for an unsupported
+    jurisdiction is preserved through a supported-jurisdiction registry.
+  - Impact: `asignacion_templates.country` column removed; `ItemSelector` no
+    longer filters by country; `CalculateLiquidacion` keeps `country` as a
+    formula binding and adds the `unsupported_jurisdiction` failure code. Golden
+    values unchanged. Reflected in data-model.md, contracts/{cel,api}.md, and
+    docs/ARCHITECTURE.md.
+  - Follow-up TODOs: none.
 -->
 
 # Flex Salary Calculator Constitution
@@ -36,22 +48,28 @@ and verified before acceptance.
 
 ### II. Legislation-Driven Calculation Isolation
 
-Salary calculation rules MUST be selected by employee country (jurisdiction) and
-applicable contract conditions, never hard-coded into shared code paths. Each
-jurisdiction's rules MUST live in a self-contained, independently testable
-unit (strategy/service object) with:
+Salary calculation rules MUST live in self-contained, independently testable
+units — one definition per calculation item — and MUST NOT be hard-coded into
+shared orchestration code paths. Each item is defined by an expression that
+receives the applicable context (the employee's jurisdiction/country, contract
+conditions, and prior running subtotals) as explicit bindings and encodes its
+own rule inside that expression. Jurisdiction-dependent behavior MUST live in
+the item's expression, never in a database relationship or a per-country row.
+Each item MUST declare:
 
-- explicit inputs, outputs, and rounding rules declared in the unit itself;
+- explicit inputs, outputs, and rounding rules within the expression itself;
 - a version identifier or effective date range so rule changes are traceable;
-- refusal to calculate (explicit error) when no rule matches the given
-  jurisdiction/contract combination — silent defaulting to another
-  jurisdiction's rules is forbidden.
+- refusal to calculate (explicit error) when the employee's jurisdiction has no
+  supported legislation — silently applying another jurisdiction's rules is
+  forbidden.
 
 Monetary values MUST use integer minor units (or equivalent exact
 representation); floating-point arithmetic MUST NOT be used for money.
 
 **Rationale**: Cross-country payroll means divergent and changing legislation;
-isolation and explicit refusal are the only ways to keep correctness auditable.
+isolating each rule inside its own expression (with an explicit refusal for
+unsupported jurisdictions) is the only way to keep correctness auditable
+without duplicating the same logic once per country.
 
 ### III. Test-First (NON-NEGOTIABLE)
 
@@ -139,4 +157,4 @@ untraceable number cannot be explained to an auditor or regulator.
 - Runtime development guidance is maintained at the Rails specialist URL cited
   in Principle IV; guidance updates MUST be consistent with this constitution.
 
-**Version**: 1.0.0 | **Ratified**: 2026-10-07 | **Last Amended**: 2026-10-07
+**Version**: 1.1.0 | **Ratified**: 2026-10-07 | **Last Amended**: 2026-10-14

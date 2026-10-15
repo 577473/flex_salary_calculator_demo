@@ -10,7 +10,9 @@
   The same month in different years is a distinct period.
 - Effective ranges: `effective_from` (inclusive) and `effective_to`
   (inclusive, nullable = open-ended).
-- ISO country codes (3166-1 alpha-2) on all country-scoped records.
+- ISO country codes (3166-1 alpha-2) identify an employee's jurisdiction
+  (`Job.country`); they are provided to each item's formula, not used to select
+  templates.
 - Every table has `id`, `created_at`, `updated_at` unless noted.
 
 ## Entities
@@ -47,23 +49,27 @@ Uniqueness/lifecycle:
 
 ### AsignacionTemplate (seeded formula catalog)
 
-Reusable payroll-item definition used to pick which formulas apply to an
-employee+period.
+Reusable payroll-item definition. Every applicable item is evaluated for the
+employee+period; the item's formula carries any jurisdiction dependence.
 
 | Field | Type | Rules |
 |-------|------|-------|
 | id | integer PK | |
-| description | string | required, unique per (country, category) |
+| description | string | required, unique per category |
 | formula | text | required, valid CEL (see contracts/cel.md) |
 | category | string | in `haber` / `descuento` / `aporte` |
-| country | string(2) | required ISO code |
 | effective_from | date | required |
 | effective_to | date | nullable; default empty = permanent |
 | version | integer | default 1; bumped whenever formula changes (audit, FR-009) |
 
 Rules:
 - FR-005: an item is applicable to employee E in period P iff
-  `country == E.job(P).country` AND `effective_from <= P <= effective_to`.
+  `effective_from <= P <= effective_to`; its formula receives `country`
+  (E's Job country for P) as an input and MUST encode any jurisdiction rule
+  itself. Items are not scoped by a country relationship.
+- Items are unique per `[category, description]`.
+- An unsupported jurisdiction (no legislation) is refused explicitly, not
+  silently evaluated against another jurisdiction's rule.
 - No per-employee overrides in v1 (clarified).
 
 ### Liquidacion (payroll result per employee + period)
@@ -74,18 +80,25 @@ Rules:
 | employee_id | FK → Employee | required |
 | period_year | integer | required |
 | period_month | integer | 1..12 |
-| haberes_totales_cents | integer | >= 0 |
-| descuentos_totales_cents | integer | >= 0 |
-| aportes_totales_cents | integer | >= 0 |
-| final_salary_cents | integer | >= 0; = haberes - descuentos |
+| haberes_totales_cents | integer | nullable; >= 0 |
+| descuentos_totales_cents | integer | nullable; >= 0 |
+| aportes_totales_cents | integer | nullable; >= 0 |
+| final_salary_cents | integer | nullable; >= 0; = haberes - descuentos |
 
 Uniqueness: unique index `[employee_id, period_year, period_month]` →
-recalculation is idempotent (upsert; FR-007).
-State: no lifecycle/locking in v1 (deferred to post-plan).
+recalculation fills the same prepared run (idempotent; FR-007).
+
+State (two-value, no history):
+- **pending** — the run and its Asignacion rows exist, but nothing has been
+  calculated: all four totals are `NULL` (`Liquidacion#pending?`).
+- **calculated** — all four totals are set.
+- All-or-none: a row with some totals set and others `NULL` is invalid.
 
 ### Asignacion (applied item line, belongs_to Liquidacion)
 
-Immutable audit snapshot of one item that contributed to a Liquidacion.
+One payroll item belonging to a Liquidacion. It is created (with description,
+category, formula, version and position) BEFORE calculation and becomes an
+immutable audit snapshot once `amount_cents` is filled in.
 
 | Field | Type | Rules |
 |-------|------|-------|
@@ -96,7 +109,7 @@ Immutable audit snapshot of one item that contributed to a Liquidacion.
 | category | string | snapshot (`haber`/`descuento`/`aporte`) |
 | formula | text | snapshot (the formula AS evaluated) |
 | formula_version | integer | snapshot from template version (FR-009) |
-| amount_cents | integer | computed, rounded to cent |
+| amount_cents | integer | nullable until calculated; rounded to cent |
 | position | integer | evaluation order within the Liquidacion |
 
 Relationships (user-specified): `Liquidacion -n Asignacion`
@@ -106,27 +119,52 @@ must not rewrite history.
 
 ## Evaluation Order & Dependencies (FR-002, clarified)
 
-1. Resolve Job for (employee, period) — missing Job ⇒ per-employee failure.
-2. Select applicable AsignacionTemplates (country = Job.country, range contains
-   period), grouped by category.
-3. Evaluate items category by category: **haberes → descuentos → aportes**.
-   A formula may reference `haberes_totales`, `descuentos_totales`,
+The run is prepared first, then calculated:
+
+1. **Prepare** (upstream step, outside the calculator — this repo's seeds and
+   specs stand in for it): create the empty Liquidacion for (employee, period)
+   and one Asignacion per applicable catalog item, carrying its description,
+   category, formula, formula_version and position. `amount_cents` and the
+   totals stay `NULL` → the run is *pending*.
+2. Resolve Job for (employee, period) — missing Job ⇒ per-employee failure.
+   A job country without legislation ⇒ `unsupported_jurisdiction` failure.
+3. Evaluate the prepared rows category by category: **haberes → descuentos →
+   aportes**. A formula may reference `haberes_totales`, `descuentos_totales`,
    `aportes_totales` (the running subtotal, Integer cents, available only for
-   categories already evaluated) plus `base_salary`, `country`,
-   `period_year`, `period_month`, `name`. Referencing a not-yet-computed
-   subtotal or any sibling item ⇒ explicit item failure (FR-008).
-4. Write one Asignacion per evaluated item (amount + snapshots) and the
-   Liquidacion totals. `final_salary = haberes - descuentos`.
+   categories already evaluated) plus `base_salary`, `country`, `period_year`,
+   `period_month`, `name`. Referencing a not-yet-computed subtotal or any
+   sibling item ⇒ explicit item failure (FR-008).
+4. Persist each row's `amount_cents`, then derive the Liquidacion totals **from
+   the stored rows** (never from in-memory intermediates) and set
+   `final_salary = haberes - descuentos`. The run is no longer pending.
+5. A run with no prepared rows ⇒ `no_applicable_items` failure. Any item
+   failure aborts the transaction: no amounts and no totals are written.
 
 ## Seeded Example Data (FR-012)
 
 - 4 employees; 2 with mid-year base-salary change (two Jobs each) to prove
   period-bound calculations.
 - Countries: **Argentina (AR)** and **Uruguay (UY)** — at least two countries.
-- Templates per country/category covering:
-  - literal value (fixed bonus),
+- Base salaries are integer cents approximating a local-currency middle-class
+  monthly gross (realistic `_cents` magnitudes):
+  - Ana García (AR): `120_000_000`
+  - Bruno Sosa (AR): `100_000_000` → `110_000_000` (raise effective 2026-07-01)
+  - Camila Díaz (UY): `6_000_000`
+  - Diego Araújo (UY): `5_000_000` → `5_500_000` (raise effective 2026-07-01)
+- Currency is not modeled: `_cents` are minor units of the Job country's local
+  currency (AR→ARS, UY→UYU); a single currency per employee, no conversion
+  (see spec.md Assumptions).
+- A single item catalog (not duplicated per country) with examples covering:
+  - literal value (fixed bonus, country-dependent amount
+    e.g., `country == "AR" ? 5000000 : 250000`),
   - reference + arithmetic (e.g., `base_salary * 2`),
   - conditional/ternary (e.g., `period_month == 12 ? base_salary / 2 : 0`),
   - country-dependent percentage discount
     (e.g., `round(base_salary * (country == "AR" ? 0.17 : 0.15))`),
   - subtotal-dependent item (e.g., a descuento referencing `haberes_totales`).
+- Re-seeding updates Jobs/templates in place but never rewrites stored
+  Liquidaciones (FR-009 keeps history); recalculate a period after changing the
+  catalog so persisted totals reflect the new formulas.
+- Seeds also prepare a **pending** run (empty Liquidacion + one Asignacion per
+  applicable item) for every employee for every month in 2025-01..2026-12, so
+  the UI can open a period before anything has been calculated.

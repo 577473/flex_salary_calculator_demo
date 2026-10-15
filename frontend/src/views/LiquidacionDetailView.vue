@@ -24,6 +24,10 @@ const groups = [
   <section v-if="store.detail" data-testid="detail">
     <h2>{{ store.detail.name }} — {{ store.detail.period }}</h2>
 
+    <p v-if="store.detail.pending" class="pending-notice" data-testid="pending-notice">
+      Liquidación pendiente de cálculo: los importes aparecen cuando el calculador completa cada ítem.
+    </p>
+
     <dl class="totals">
       <div>
         <dt>Haberes</dt>
@@ -64,6 +68,10 @@ const groups = [
 <style scoped>
 .missing {
   color: #b00020;
+}
+
+.pending-notice {
+  color: #8a6d3b;
 }
 
 .totals {

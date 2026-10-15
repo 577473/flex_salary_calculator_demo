@@ -12,7 +12,8 @@ response envelope, never as HTTP errors.
 Amounts are integers in cents with a `_cents` suffix (`haberes_totales_cents`,
 `descuentos_totales_cents`, `aportes_totales_cents`, `final_salary_cents`,
 `amount_cents`, `base_salary_cents`). Periods use the canonical `"YYYY-MM"`
-format. **No floats anywhere.**
+format. **No floats anywhere.** `null` means *not calculated yet* (a pending
+run) and must not be read as zero.
 
 ## Endpoints
 
@@ -38,9 +39,13 @@ List employees.
 
 ### POST /api/v1/liquidaciones/calculate
 
-Trigger payroll calculation for a set of employees and one period. Recalculation
-upserts (unique employee + period); per-employee failures never block the rest
-of the batch (FR-014).
+Trigger payroll calculation for a set of employees and one period. The
+calculator **fills in a run that an upstream step already prepared** (empty
+Liquidacion + one Asignacion per applicable item): it does not create or delete
+items, only writes each row's `amount_cents` and then derives the Liquidacion
+totals from the stored rows. A run with no prepared items fails with
+`no_applicable_items`. Recalculation is idempotent (unique employee + period);
+per-employee failures never block the rest of the batch (FR-014).
 
 Request:
 
@@ -76,12 +81,15 @@ List Liquidaciones for a period. `period` is required; `employee_id` is optional
   {
     "liquidaciones": [
       { "id": 1, "employee_id": 1, "name": "Ana García", "period": "2026-09",
-        "haberes_totales_cents": 120000, "descuentos_totales_cents": 20400,
-        "aportes_totales_cents": 34800, "final_salary_cents": 99600,
+        "haberes_totales_cents": 125000000, "descuentos_totales_cents": 24150000,
+        "aportes_totales_cents": 34800000, "final_salary_cents": 100850000,
+        "pending": false,
         "items_url": "/api/v1/liquidaciones/1" }
     ]
   }
   ```
+- A run that has not been calculated yet is returned with `"pending": true` and
+  all totals as `null`.
 - `400` problem+json when `period` is missing or not `YYYY-MM`.
 
 ### GET /api/v1/liquidaciones/:id
@@ -94,12 +102,17 @@ category in evaluation order: haberes → descuentos → aportes.
   {
     "liquidacion": {
       "id": 1, "employee_id": 1, "name": "Ana García", "period": "2026-09",
-      "haberes_totales_cents": 120000, "descuentos_totales_cents": 20400,
-      "aportes_totales_cents": 34800, "final_salary_cents": 99600,
+      "haberes_totales_cents": 125000000, "descuentos_totales_cents": 24150000,
+      "aportes_totales_cents": 34800000, "final_salary_cents": 100850000,
+      "pending": false,
       "items": [
-        { "description": "Base salary", "category": "haber",
-          "amount_cents": 120000, "formula": "base_salary",
-          "formula_version": 1 }
+        { "description": "Salario base", "category": "haber", "amount_cents": 120000000, "formula": "base_salary", "formula_version": 1 },
+        { "description": "Bono fijo", "category": "haber", "amount_cents": 5000000, "formula": "country == \"AR\" ? 5000000 : 250000", "formula_version": 1 },
+        { "description": "Aguinaldo", "category": "haber", "amount_cents": 0, "formula": "period_month == 12 ? round(base_salary / 2) : 0", "formula_version": 1 },
+        { "description": "Extra horas", "category": "haber", "amount_cents": 0, "formula": "period_month == 6 ? round(base_salary * 0.1) : 0", "formula_version": 1 },
+        { "description": "Descuento legal", "category": "descuento", "amount_cents": 20400000, "formula": "round(base_salary * (country == \"AR\" ? 0.17 : 0.15))", "formula_version": 1 },
+        { "description": "Descuento previsional", "category": "descuento", "amount_cents": 3750000, "formula": "round(haberes_totales * 0.03)", "formula_version": 1 },
+        { "description": "Aporte empleador", "category": "aporte", "amount_cents": 34800000, "formula": "round(base_salary * (country == \"AR\" ? 0.29 : 0.23))", "formula_version": 1 }
       ]
     }
   }
@@ -114,7 +127,8 @@ Liquidacion with no partial record (FR-008).
 | Code                 | Meaning                                                          |
 |----------------------|------------------------------------------------------------------|
 | `no_job_for_period`  | No contractual Job covers the requested period.                  |
-| `no_applicable_items`| No AsignacionTemplate applies to the employee's country/period.  |
+| `unsupported_jurisdiction` | The employee's Job country has no supported legislation.   |
+| `no_applicable_items`| No prepared run (empty Liquidacion + items) exists for the period.     |
 | `formula_invalid`    | Formula failed to compile/check (unknown variable, bad syntax).  |
 | `formula_error`      | Formula failed at evaluation (division by zero, non-integer money result, referenced subtotal unavailable). |
 | `unknown_employee`   | The requested employee id does not exist (mixed batches only).   |

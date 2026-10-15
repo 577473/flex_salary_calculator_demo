@@ -37,7 +37,7 @@ Money bindings use Integer cents; money-typed results MUST be normalized with
 
 ## 2. Architecture: Rails API + Vue SPA
 
-**Decision**: API-only Rails 7.2 app (`backend/`, port 3000) + standalone
+**Decision**: API-only Rails 8.1 app (`backend/`, port 3000) + standalone
 Vue 3/Vite SPA (`frontend/`, port 5173). Enable CORS for `http://localhost:5173`
 via `rack-cors`. Run both with a `Procfile` (foreman). SQLite via file-backed
 database (zero-install, no external server).

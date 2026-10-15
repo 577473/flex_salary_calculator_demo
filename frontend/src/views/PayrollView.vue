@@ -73,6 +73,7 @@ async function calculate() {
         <tr v-for="liquidacion in store.liquidaciones" :key="liquidacion.id" data-testid="result-row">
           <td>
             <RouterLink :to="`/liquidaciones/${liquidacion.id}`">{{ liquidacion.name }}</RouterLink>
+            <span v-if="liquidacion.pending" class="pending" data-testid="pending-badge">Pendiente</span>
           </td>
           <td>{{ formatMoney(liquidacion.haberes_totales_cents) }}</td>
           <td>{{ formatMoney(liquidacion.descuentos_totales_cents) }}</td>
@@ -91,6 +92,12 @@ async function calculate() {
 
 .empty {
   color: #555;
+}
+
+.pending {
+  display: block;
+  font-size: 0.75rem;
+  color: #8a6d3b;
 }
 
 table {

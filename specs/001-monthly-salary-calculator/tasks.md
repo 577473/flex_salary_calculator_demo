@@ -32,7 +32,7 @@ description: "Task list for flexible monthly salary calculator feature implement
 
 - [x] T001 Create repository layout directories `backend/`, `frontend/`, `postman/`, `docs/` plus root `.gitignore` and `Procfile` (web: rails in backend, vite in frontend)
 - [x] T002 [P] Scaffold Rails API-only app in `backend/` (`rails new backend --api --database=sqlite3 --skip-test`; Ruby 4.0.7 + Rails 8.1.4 installed via Scoop+MSYS2 devkit)
-- [x] T003 [P] Add gems to `backend/Gemfile` and `bundle install`: `cel` (~> 0.6), `rack-cors`; test group: `rspec-rails`, `factory_bot_rails`, `faker`, `shoulda-matchers`, `brakeman`, `bundler-audit`, `simplecov`, `rubocop-rails-omakase`; run `bin/rails g rspec:install`
+- [x] T003 [P] Add gems to `backend/Gemfile` and `bundle install`: `cel` (~> 0.6), `rack-cors`; test group: `rspec-rails`, `factory_bot_rails`, `faker`, `shoulda-matchers`, `brakeman`, `bundler-audit`, `simplecov`, `rubocop-rails-omakase`; run `ruby bin/rails g rspec:install`
 - [x] T004 [P] Scaffold Vue 3 + Vite + vue-router + pinia + axios in `frontend/` (Vite 6.4 pinned for Node 18; npm6 shim quirk → build with `node_modules\.bin\vite.cmd`), add `vitest` + `@vue/test-utils` + `jsdom` dev deps, add `.env` with `VITE_API_URL=http://localhost:3000`
 
 ---
@@ -43,7 +43,7 @@ description: "Task list for flexible monthly salary calculator feature implement
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [x] T005 Create migrations for all tables with indexes and constraints in `backend/db/migrate/`: `employees`, `jobs` (unique-in-range handled at model layer), `asignacion_templates` (category enum, country), `liquidaciones` (unique index on `[employee_id, period_year, period_month]`), `asignaciones` (liquidacion FK, template FK); run `bin/rails db:migrate`
+- [x] T005 Create migrations for all tables with indexes and constraints in `backend/db/migrate/`: `employees`, `jobs` (unique-in-range handled at model layer), `asignacion_templates` (category enum + effective range), `liquidaciones` (unique index on `[employee_id, period_year, period_month]`), `asignaciones` (liquidacion FK, template FK); run `ruby bin/rails db:migrate`
 - [x] T006 [P] Create models with associations, validations, and enums in `backend/app/models/`: `employee.rb`, `job.rb` (no-overlap range validation), `asignacion_template.rb` (category enum haber/descuento/aporte, version default 1), `liquidacion.rb` (uniqueness + final_salary consistency), `asignacion.rb`; add `backend/spec/models/*_spec.rb` for each (TDD: failing first)
 - [x] T007 [P] Implement problem+json error envelope base controller `backend/app/controllers/api/base_controller.rb` with `rescue_from` for `ActionController::ParameterMissing`, `RecordNotFound`, `400`, `422` handling and consistent `{"errors":[...]}` output
 - [x] T008 [P] Define REST routes under `/api/v1` in `backend/config/routes.rb`: `GET /health`, resources `employees` (index/show), `POST /liquidaciones/calculate`, `GET /liquidaciones` (with `period`, `employee_id` filters), `GET /liquidaciones/:id`
@@ -65,19 +65,19 @@ description: "Task list for flexible monthly salary calculator feature implement
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [x] T012 [P] [US1] Golden-value specs in `backend/spec/golden/demo_calculation_spec.rb`: fixed AR and UY examples (literal, reference+arithmetic, ternary, country-dependent, subtotal-dependent items; round-half-up) asserting exact `_cents` totals per period
+- [x] T012 [P] [US1] Golden-value specs in `backend/spec/golden/demo_calculation_spec.rb`: fixed AR and UY examples from a single catalog (reference, ternary, country-dependent, subtotal-dependent items — integer literals inside formulas; round-half-up) asserting exact `_cents` totals per period
 - [x] T013 [P] [US1] Unit specs for CelEvaluator in `backend/spec/services/cel_evaluator_spec.rb`: literals, comparisons, logic, ternary, arithmetic, `round`/`min`/`max`, unknown variable, bad syntax, division, integer/double semantics
-- [x] T014 [P] [US1] Unit specs in `backend/spec/services/period_resolver_spec.rb` and `backend/spec/services/item_selector_spec.rb`: mid-year change resolution, year specificity, open-ended ranges, no-overlap, country+category+range filtering
+- [x] T014 [P] [US1] Unit specs in `backend/spec/services/period_resolver_spec.rb` and `backend/spec/services/item_selector_spec.rb`: mid-year change resolution, year specificity, open-ended ranges, no-overlap, category+range filtering (country passed as a formula input)
 - [x] T015 [P] [US1] Service specs for `CalculateLiquidacion` in `backend/spec/services/calculate_liquidacion_spec.rb`: success totals, idempotent upsert, per-employee partial failure (`no_job_for_period`, `no_applicable_items`, `formula_invalid`, `formula_error`), no partial Liquidacion persisted on item failure, `final_salary == haberes - descuentos`
 
 ### Implementation for User Story 1
 
 - [x] T016 [US1] Implement `backend/app/services/cel_evaluator.rb`: wrap `cel` gem (Environment compile/check/evaluate), register `round`/`min`/`max` extensions, enforce money-int result, cache compiled expressions by formula text
 - [x] T017 [P] [US1] Implement `backend/app/services/period_resolver.rb`: resolve the unique in-effect Job for employee + (year, month), return nil when none
-- [x] T018 [P] [US1] Implement `backend/app/services/item_selector.rb`: select applicable AsignacionTemplates by country + effective range, ordered by category (haberes → descuentos → aportes) then position
+- [x] T018 [P] [US1] Implement `backend/app/services/item_selector.rb`: select applicable AsignacionTemplates by effective range, ordered by category (haberes → descuentos → aportes) then position
 - [x] T019 [US1] Implement `backend/app/services/calculate_liquidacion.rb`: orchestrate selector + evaluator + resolver, bind variables (`name`, `country`, `base_salary`, `period_year`, `period_month`, running `haberes_totales`/`descuentos_totales`/`aportes_totales`), evaluate category-ordered items, upsert Liquidacion + rebuild Asignacion snapshots, return per-employee envelope (depends on T016-T018)
-- [x] T020 [US1] Write idempotent seeds in `backend/db/seeds.rb` per FR-012/data-model.md: 4 employees (2 with mid-year Job changes), AR + UY templates incl. `round(base_salary * (country == "AR" ? 0.17 : 0.15))`, aguinaldo ternary, `round(haberes_totales * 0.03)`, employer aportes
-- [x] T021 [US1] Verify with `cd backend && bin/rails db:seed && bundle exec rspec` — all US1 specs green against seeded golden values
+- [x] T020 [US1] Write idempotent seeds in `backend/db/seeds.rb` per FR-012/data-model.md: 4 employees (2 with mid-year Job changes), a single AR/UY item catalog incl. `round(base_salary * (country == "AR" ? 0.17 : 0.15))`, aguinaldo ternary, `round(haberes_totales * 0.03)`, employer aportes
+- [x] T021 [US1] Verify with `cd backend && ruby bin/rails db:seed && bundle exec rspec` — all US1 specs green against seeded golden values
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently (MVP)
 
@@ -142,6 +142,25 @@ description: "Task list for flexible monthly salary calculator feature implement
 - [x] T038 [P] Full verification run: `cd backend && bundle exec rspec`, `cd frontend && npm run test`, `bundle exec rubocop`, `bin/brakeman -q` — fix any drift
 - [x] T039 [P] Security/audit pass: ensure seeds/logs contain no real PII, all queries parameterized, money never Float (grep `_cents` floats), N+1 check on liquidaciones#index (`includes`)
 
+## Phase 7: Asignacion lifecycle refactor (calculator fills, never creates)
+
+The calculator no longer creates `Asignacion` rows. An upstream step
+(out of scope for this repo) pre-creates an empty `Liquidacion` and one
+`Asignacion` per applicable item; the calculator only fills `amount_cents` and
+derives the Liquidacion totals from the stored rows. Seeds and specs act as the
+upstream stand-in.
+
+- [x] T040 Migration `backend/db/migrate/20261014010000_allow_pending_payroll_state.rb`: make `liquidaciones` totals and `asignaciones.amount_cents` nullable (down deletes pending rows, then restores NOT NULL)
+- [x] T041 [P] `Liquidacion`: nullable totals, all-or-none (`totals_are_together`), `final_salary_matches` on calculated rows, `pending?`
+- [x] T042 [P] `Asignacion`: `amount_cents` optional + integer when present, `calculated?`
+- [x] T043 `CalculateLiquidacion`: find prepared run + rows (empty ⇒ `no_applicable_items`, detail "No prepared items found for #{period}"), evaluate stored formulas category-ordered, write amounts, aggregate totals from stored rows in one transaction; keep `unsupported_jurisdiction` + final-salary invariant
+- [x] T044 Update `backend/db/seeds.rb`: prepare pending runs for every employee for 2025-01..2026-12 via `ItemSelector`; refresh only new/pending runs
+- [x] T045 Update `backend/scripts/sample_calculation.rb`: prepare pending rows before calculating
+- [x] T046 Specs: `spec/support/pending_payroll.rb` helper + `:pending` factory traits; update model, calculate service, golden, and request specs (pending flag / null amounts; rollback leaves run pending)
+- [x] T047 Frontend: `formatMoney(null|undefined)` ⇒ `—` (never `$0.00`) + pending badge/notice; add `tests/utils/money.spec.js`
+- [x] T048 Docs propagation: `spec.md`, `data-model.md`, `contracts/api.md`, `docs/API.md`, `docs/ARCHITECTURE.md`, `docs/TESTS.md`, `quickstart.md`, `README.md`, `tasks.md`
+- [x] T049 Verify: `bundle exec rspec` (137), `bundle exec rubocop` (clean), `ruby bin/brakeman -q` (0), `cd frontend && npm test` (13), sample script golden values, dev seed
+
 ---
 
 ## Dependencies & Execution Order
@@ -202,7 +221,7 @@ Task: "ItemSelector (backend/app/services/item_selector.rb)"
 2. Complete Phase 2: Foundational (CRITICAL - blocks all stories)
 3. Complete Phase 3: User Story 1 (TDD: specs red → schema → services → seeds → green)
 4. **STOP and VALIDATE**: golden values match hand-computed sums; idempotency proven by double-run
-5. Deploy/demo if ready (rake runner or `bin/rails runner` script per quickstart)
+5. Deploy/demo if ready (rake runner or `ruby bin/rails runner` script per quickstart)
 
 ### Incremental Delivery
 

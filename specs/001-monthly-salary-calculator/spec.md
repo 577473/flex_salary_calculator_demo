@@ -28,9 +28,35 @@ exposed through a web interface, a REST API, and the DB schema."
   computed so far (haberes → descuentos → aportes evaluation order); they may
   NOT reference individual sibling items.
 - Q: How are Asignacion items scoped/applied to an employee + period? → A: By
-  the employee's Job country for that period, the item's subtotal category
-  (haberes/descuentos/aportes), and an effective period range; per-employee
-  item overrides are out of scope for v1.
+  the item's subtotal category (haberes/descuentos/aportes) and an effective
+  period range; per-employee item overrides are out of scope for v1. The
+  employee's Job country is provided to each item's formula as an input, not as
+  a selection key.
+
+### Session 2026-10-14
+
+- Q: Where does jurisdiction (country) dependence live — in item selection or in
+  the formula? → A: In the formula. Each Asignacion item is a per-item
+  definition whose stored expression receives the employee's context (country,
+  period, base salary, running subtotals) as explicit bindings and encodes its
+  own rule; country is never a database scope or selection key. An unsupported
+  jurisdiction is refused explicitly (`unsupported_jurisdiction`), never
+  silently defaulted to another jurisdiction's rule.
+
+### Session 2026-10-15
+
+- Q: Who creates the Asignacion rows a payroll run is made of? → A: An
+  **upstream step outside this feature** creates the empty Liquidacion and one
+  Asignacion per applicable item (description, category, formula, formula
+  version, position) first. The calculator never creates or deletes items: it
+  only evaluates each stored formula, writes that row's amount, and derives the
+  Liquidacion totals from the persisted rows. A period with no prepared run
+  fails explicitly (`no_applicable_items`). In this repo the seeds and the test
+  helper stand in for that upstream step.
+- Q: How does the UI represent a run that exists but is not yet calculated? →
+  A: The run and its items are *pending* (`amount_cents` and all totals `null`);
+  the API reports `"pending": true` and the frontend renders `—`, never a fake
+  `$0.00`. After calculation all totals are set (all-or-none).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -118,9 +144,9 @@ breakdowns are returned.
 
 **Acceptance Scenarios**:
 
-1. **Given** valid employee IDs and period, **When** the calculation endpoint
-   is called, **Then** it returns the created/updated Liquidaciones with all
-   totals and the item breakdown.
+1. **Given** valid employee IDs, a period, and a prepared run, **When** the
+   calculation endpoint is called, **Then** it returns the calculated
+   Liquidaciones with all totals and the item breakdown.
 2. **Given** an unknown employee ID or malformed period, **When** the endpoint
    is called, **Then** it returns a clear validation error and creates no
    records.
@@ -144,8 +170,13 @@ breakdowns are returned.
   documented rule; system never silently stores malformed money values.
 - Employee with zero applicable items → not a valid Liquidacion; explicit
   error.
-- Recalculation of an existing period (idempotency) → replaces the previous
-  result for that employee + period; no duplicates.
+- Period with no prepared run (no Liquidacion / no Asignacion lines) → explicit
+  per-employee error (`no_applicable_items`); the calculator does not create the
+  missing items.
+- An item fails after earlier items already evaluated → the whole run is rolled
+  back and stays pending (no amounts, no totals written).
+- Recalculation of an existing period (idempotency) → fills the same prepared
+  run for that employee + period; no duplicates.
 - Same month number across different years must use that year's contractual
   data (January 2025 ≠ January 2026).
 - Batch request containing a mix of valid and invalid employees → partial
@@ -165,12 +196,14 @@ breakdowns are returned.
   items); each item's amount MUST be produced by evaluating a formula stored
   with the item, supporting literal values, conditionals, and references to
   the employee's data, contractual conditions, and the running subtotal
-  totals. Items MUST be evaluated in subtotal order (haberes → descuentos →
-  aportes); a formula may reference only subtotals evaluated before its own
-  category (e.g., a descuento may reference `haberes_totales`, but a haber
-  may reference no subtotal), and MUST NOT reference sibling item amounts.
-  Formulas referencing a not-yet-computed subtotal or another item MUST fail
-  explicitly.
+  totals. The run and its items are created by an upstream step before
+  calculation; the calculator fills each item's amount and MUST derive the
+  Liquidacion totals from the persisted item rows. Items MUST be evaluated in
+  subtotal order (haberes → descuentos → aportes); a formula may reference only
+  subtotals evaluated before its own category (e.g., a descuento may reference
+  `haberes_totales`, but a haber may reference no subtotal), and MUST NOT
+  reference sibling item amounts. Formulas referencing a not-yet-computed
+  subtotal or another item MUST fail explicitly.
 - **FR-003**: Formulas MUST be evaluated by an implementation of Google's
   Common Expression Language (CEL), and MUST NOT be executed as arbitrary
   code.
@@ -179,13 +212,16 @@ breakdowns are returned.
   the conditions in effect for employee + P — results are reproducible and
   tied to employee + period.
 - **FR-005**: System MUST classify each item into exactly one of the three
-  subtotals (haberes, descuentos, aportes), and MUST apply only items
-  applicable to the employee's contractual context (jurisdiction/contract) for
-  the requested period.
+  subtotals (haberes, descuentos, aportes), and MUST apply the items whose
+  effective period range covers the requested period, in evaluation order. Each
+  item's formula receives the employee's contractual context (including
+  jurisdiction) as an input; jurisdiction-dependent rules MUST be expressed
+  inside the item's own formula, never selected by a per-country relationship.
 - **FR-006**: Calculation MUST be deterministic: identical data + period →
   identical totals (rounding rules fixed and documented).
 - **FR-007**: Recalculating an existing employee + period MUST NOT create
-  duplicate records; it MUST reflect the latest formulas and conditions.
+  duplicate records; it MUST fill the same prepared run and reflect the latest
+  formulas and conditions.
 - **FR-008**: System MUST refuse to persist a Liquidacion when any applicable
   item fails to evaluate (missing field, unknown reference, invalid formula),
   and MUST report the failure with the offending item and reason; silent
@@ -199,9 +235,9 @@ breakdowns are returned.
   employees + period and to retrieve Liquidaciones with totals and breakdowns,
   returning clear validation errors for invalid input.
 - **FR-012**: Storage MUST be lightweight local storage pre-seeded with
-  example data: employees, multi-period job history, and item formulas that
-  demonstrate literals, conditionals, and employee/contract-dependent
-  expressions across at least two countries.
+  example data: employees, multi-period job history, and a single item-formula
+  catalog that demonstrates literals, conditionals, and country/contract-
+  dependent expressions referencing at least two jurisdictions.
 - **FR-013**: Domain logic MUST be modular with separation of concerns
   (persistence, formula evaluation, item selection, subtotal composition, and
   presentation/API as distinct units), each covered by automated tests.
@@ -218,7 +254,11 @@ breakdowns are returned.
   a history of these; exactly one applies per period.
 - **Asignacion (payroll item)**: A component that contributes to payroll —
   description, stored formula, subtotal category (haberes / descuentos /
-  aportes), and applicability context (jurisdiction/contract scope).
+  aportes), and an effective period range. Any jurisdiction/contract
+  dependence is expressed inside the stored formula; the item itself is not
+  scoped to a country. An Asignacion BEGINS a run as a prepared line (formula,
+  category, position; no amount) and is completed when the calculator writes its
+  amount — it is created upstream, never by the calculator.
 - **Liquidacion (payroll result)**: The computed result for one employee +
   period: `haberes_totales`, `descuentos_totales`, `aportes_totales`,
   `final_salary`, plus the per-item breakdown used to produce them.
@@ -251,13 +291,20 @@ breakdowns are returned.
   descuentos_totales`; `aportes_totales` are employer-side contributions that
   are reported but do not reduce employee pay.
 - **Item scoping (clarified)**: Applicability of an Asignacion to an employee +
-  period is determined by the employee's Job country for that period, an item
-  category (haberes/descuentos/aportes), and an effective period range;
-  per-employee item overrides are out of scope for v1.
+  period is determined solely by an effective period range (and its subtotal
+  category for composition); the employee's Job country is passed into the
+  item's formula as an input. Items are not scoped by a country relationship.
+  Per-employee item overrides are out of scope for v1. A jurisdiction with no
+  supporting legislation is refused explicitly.
 - **Per-item results**: The user-specified schema (Employee, Job, Liquidacion,
   Asignacion) is kept; FR-009's breakdown requires one additional
   stored detail (e.g., a line-item table or embedded breakdown) — exact shape
   decided at planning time.
+- **Run preparation (clarified)**: Creating the Liquidacion and its Asignacion
+  rows is owned by an **upstream step outside this feature**; the calculator
+  only evaluates prepared rows and derives totals from them. For the demo, the
+  seeds and the test helper act as that upstream step, and a run with no
+  prepared items is reported as `no_applicable_items`.
 - **Money representation**: Amounts use exact decimal values with 2-decimal
   (minor-unit) rounding applied at item level, documented and tested; no
   floating-point money math (constitution Principle II).

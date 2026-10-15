@@ -1,5 +1,9 @@
+export const PENDING_PLACEHOLDER = '—'
+
 export function formatMoney(cents) {
-  const amount = (Number(cents) || 0) / 100
+  if (cents === null || cents === undefined) return PENDING_PLACEHOLDER
+
+  const amount = Number(cents) / 100
   return `$${amount.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 

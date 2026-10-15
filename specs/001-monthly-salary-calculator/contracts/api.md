@@ -28,7 +28,9 @@ List employees (with current job info).
 
 ### POST /api/v1/liquidaciones/calculate
 
-Trigger payroll calculation for a set of employees and one period.
+Trigger payroll calculation for a set of employees and one period. The
+calculator does not create items: it fills in a run that an upstream step
+already prepared (empty Liquidacion + one Asignacion per applicable item).
 
 Request:
 
@@ -63,8 +65,10 @@ Responses:
 }
 ```
 
-Failure codes: `no_job_for_period`, `no_applicable_items`, `formula_invalid`,
-`formula_error` (includes item description + reason), `unknown_employee`.
+Failure codes: `no_job_for_period`, `unsupported_jurisdiction`,
+`no_applicable_items` (no prepared run / no prepared items for that period),
+`formula_invalid`, `formula_error` (includes item description + reason),
+`unknown_employee`.
 
 Rules bonded to spec: per-employee failures never block other employees
 (FR-014); failing items abort that employee's Liquidacion with no partial
@@ -75,10 +79,11 @@ FR-007); determinism (FR-006).
 
 List Liquidaciones, filtered by required `period`, optional `employee_id`.
 
-- 200 → `{"liquidaciones":[{"id","employee_id","name","period","haberes_totales","descuentos_totales","aportes_totales","final_salary","items_url"}]}`
+- 200 → `{"liquidaciones":[{"id","employee_id","name","period","haberes_totales_cents","descuentos_totales_cents","aportes_totales_cents","final_salary_cents","pending","items_url"}]}`
 - Amounts serialized as strings in `"cents"` fields? **Decision**: numeric
-  fields returned as integer cents (`"haberes_totales_cents": 120000`) — see
-  GET /:id below.
+  fields returned as integer cents (`"haberes_totales_cents": 125000000`) — see
+  GET /:id below. A **pending** run (not yet calculated) returns its totals and
+  item amounts as `null` and `"pending": true`.
 - 400 problem+json: missing/invalid `period`.
 
 ### GET /api/v1/liquidaciones/:id
@@ -94,12 +99,19 @@ Detail incl. per-item audit breakdown (FR-009):
     "employee_id": 1,
     "name": "Ana García",
     "period": "2026-09",
-    "haberes_totales_cents": 120000,
-    "descuentos_totales_cents": 20400,
-    "aportes_totales_cents": 34800,
-    "final_salary_cents": 99600,
+    "haberes_totales_cents": 125000000,
+    "descuentos_totales_cents": 24150000,
+    "aportes_totales_cents": 34800000,
+    "final_salary_cents": 100850000,
+    "pending": false,
     "items": [
-      { "description": "Base salary", "category": "haber", "amount_cents": 120000, "formula": "base_salary", "formula_version": 1 }
+      { "description": "Salario base", "category": "haber", "amount_cents": 120000000, "formula": "base_salary", "formula_version": 1 },
+      { "description": "Bono fijo", "category": "haber", "amount_cents": 5000000, "formula": "country == \"AR\" ? 5000000 : 250000", "formula_version": 1 },
+      { "description": "Aguinaldo", "category": "haber", "amount_cents": 0, "formula": "period_month == 12 ? round(base_salary / 2) : 0", "formula_version": 1 },
+      { "description": "Extra horas", "category": "haber", "amount_cents": 0, "formula": "period_month == 6 ? round(base_salary * 0.1) : 0", "formula_version": 1 },
+      { "description": "Descuento legal", "category": "descuento", "amount_cents": 20400000, "formula": "round(base_salary * (country == \"AR\" ? 0.17 : 0.15))", "formula_version": 1 },
+      { "description": "Descuento previsional", "category": "descuento", "amount_cents": 3750000, "formula": "round(haberes_totales * 0.03)", "formula_version": 1 },
+      { "description": "Aporte empleador", "category": "aporte", "amount_cents": 34800000, "formula": "round(base_salary * (country == \"AR\" ? 0.29 : 0.23))", "formula_version": 1 }
     ]
   }
 }
@@ -110,7 +122,8 @@ Detail incl. per-item audit breakdown (FR-009):
 ## Money serialization
 
 Integers in cents with `_cents` suffix (or `amount_cents`); final `period` is
-`"YYYY-MM"`. No floats anywhere.
+`"YYYY-MM"`. No floats anywhere. `null` means "not calculated yet" (pending
+run) and MUST NOT be read as zero.
 
 ## CORS
 

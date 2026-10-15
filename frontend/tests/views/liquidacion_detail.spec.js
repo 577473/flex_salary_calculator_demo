@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import LiquidacionDetailView from '../../src/views/LiquidacionDetailView.vue'
-import { formatMoney } from '../../src/utils/money'
+import { formatMoney, PENDING_PLACEHOLDER } from '../../src/utils/money'
 
 vi.mock('../../src/services/api', () => ({
   getEmployees: vi.fn(),
@@ -44,6 +44,21 @@ function mountView() {
   return mount(LiquidacionDetailView, { props: { id: '10' } })
 }
 
+const pendingDetail = {
+  id: 11,
+  employee_id: 2,
+  name: 'Bruno Sosa',
+  period: '2026-09',
+  pending: true,
+  haberes_totales_cents: null,
+  descuentos_totales_cents: null,
+  aportes_totales_cents: null,
+  final_salary_cents: null,
+  items: [
+    { description: 'Salario base', category: 'haber', amount_cents: null, formula: 'base_salary', formula_version: 1 }
+  ]
+}
+
 describe('LiquidacionDetailView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -78,6 +93,19 @@ describe('LiquidacionDetailView', () => {
     expect(text).toContain('Descuento legal')
     expect(text).toContain('Aporte empleador')
     expect(text).toContain('round(haberes_totales * 0.03)')
+  })
+
+  it('renders a pending liquidacion with dashes for totals and items', async () => {
+    getLiquidacion.mockResolvedValue(pendingDetail)
+
+    const wrapper = mountView()
+    await flush()
+
+    expect(wrapper.find('[data-testid="pending-notice"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain(PENDING_PLACEHOLDER)
+    expect(wrapper.text()).toContain('Salario base')
+    expect(wrapper.text()).not.toContain('$0,00')
+    expect(wrapper.text()).not.toContain('$0.00')
   })
 
   it('shows a missing-result state with no fake zeros when the liquidacion is not found', async () => {
