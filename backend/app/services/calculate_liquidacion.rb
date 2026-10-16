@@ -17,9 +17,25 @@ class CalculateLiquidacion
     end
   end
 
-  def self.call(employee_ids:, period:)
-    new(employee_ids: employee_ids, period: period).call
+  # Two equivalent entry points, matching FR-001 ("a given list of employees
+  # and a given period"):
+  #
+  #   CalculateLiquidacion.call(employees: [ana, camila], period: "2026-03")
+  #   CalculateLiquidacion.call(employee_ids: [1, 2], period: "2026-03")
+  #
+  # The `employees:` form is the domain-level entry point: it resolves the
+  # Employee records to ids and delegates to the same id-based pipeline.
+  def self.call(employee_ids: nil, employees: nil, period:)
+    new(employee_ids: ids_from(employee_ids, employees), period: period).call
   end
+
+  def self.ids_from(employee_ids, employees)
+    return employee_ids unless employee_ids.nil?
+    raise ArgumentError, "employee_ids or employees is required" if employees.nil?
+
+    Array(employees).map(&:id)
+  end
+  private_class_method :ids_from
 
   def initialize(employee_ids:, period:)
     @employee_ids = employee_ids

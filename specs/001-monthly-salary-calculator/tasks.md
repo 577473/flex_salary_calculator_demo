@@ -196,6 +196,26 @@ returns the same totals for a given (employee, period), regardless of when asked
 
 ---
 
+## Phase 10: Human-readable currency rendering
+
+Amounts are stored as integer minor units (cents); the presentation layer renders
+them in the contract currency. The frontend already did this
+(`formatMoney(cents, currency)`); the sample script now matches.
+
+- [x] T062 `backend/scripts/sample_calculation.rb`: render every printed amount in the contract currency (`$ 1.200.000,00` for ARS, `UYU 60.000,00` for UYU) — base salary, per-item amounts and totals — mirroring the frontend's `Intl.NumberFormat("es-AR", { style: "currency" })`; null amounts render as `—`. Docs: `README.md`.
+
+---
+
+## Phase 11: Service entry point accepts an employee list (FR-001)
+
+FR-001 frames the entry point as "a given **list of employees** and a given
+period". `CalculateLiquidacion.call` now accepts either an employee list (the
+domain form) or ids, matching the sample script and the seeded-console examples.
+
+- [x] T063 `CalculateLiquidacion.call(employees:, period:)`: resolve the `Employee` records to ids and delegate to the existing `employee_ids:` pipeline (accepts an array or an `ActiveRecord::Relation`, preserves order, raises `ArgumentError` when neither is given). Sample script now calls `call(employees: employees, period:)`. Docs: `README.md`, `docs/ARCHITECTURE.md`, `docs/TESTS.md`, `docs/VALIDATION.md`.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies

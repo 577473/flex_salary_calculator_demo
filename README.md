@@ -113,7 +113,7 @@ in the script itself.
   totals — change with the requested period.
 - It prepares the run first (an empty `Liquidacion` plus one `Asignacion` per
   catalog item — standing in for the upstream step that owns item creation), then
-  calls `CalculateLiquidacion.call(employee_ids:, period:)`, and prints the
+  calls `CalculateLiquidacion.call(employees:, period:)`, and prints the
   persisted per-item audit breakdown and the totals for each employee.
 
 ### Usage
@@ -130,37 +130,38 @@ bundle exec ruby scripts/sample_calculation.rb 2026-06    # any YYYY-MM
 The single argument is the period in `YYYY-MM` form; it defaults to `2026-03`.
 Try `2026-06` (Extra horas activates) or `2026-12` (Aguinaldo activates) to see
 the conditional formulas change the totals. Try `2025-09` to see Elena paid
-under her **closed** 2025 contract (base 90,000,000, final 76,850,000) rather
-than her open 2026 one.
+under her **closed** 2025 contract (base `$ 900.000,00`, final `$ 768.500,00`)
+rather than her open 2026 one. Amounts are stored as integer cents but rendered
+in the contract currency (`$` for ARS, `UYU` for UYU).
 
 ### Sample output
 
 ```text
 Salary calculation for period 2026-03
 ================================================================================================================
-Ana García  (job: AR, currency ARS, base salary 120,000,000 cents, 2025-01-01..open)
+Ana García  (job: AR, currency ARS, base salary $ 1.200.000,00, 2025-01-01..open)
 ----------------------------------------------------------------------------------------------------------------
-  CATEGORY   ITEM                     FORMULA                                                        AMOUNT
-  haber      Salario base             base_salary                                               120,000,000
-  haber      Bono fijo                country == "AR" ? 5000000 : 250000                          5,000,000
-  haber      Aguinaldo                period_month == 12 ? round(base_salary / 2) : 0                     0
-  haber      Extra horas              period_month == 6 ? round(base_salary * 0.1) : 0                    0
-  descuento  Descuento legal          round(base_salary * (country == "AR" ? 0.17 : 0.15))       20,400,000
-  descuento  Descuento previsional    round(haberes_totales * 0.03)                               3,750,000
-  aporte     Aporte empleador         round(base_salary * (country == "AR" ? 0.29 : 0.23))       34,800,000
+  CATEGORY   ITEM                     FORMULA                                                            AMOUNT
+  haber      Salario base             base_salary                                                $ 1.200.000,00
+  haber      Bono fijo                country == "AR" ? 5000000 : 250000                            $ 50.000,00
+  haber      Aguinaldo                period_month == 12 ? round(base_salary / 2) : 0                    $ 0,00
+  haber      Extra horas              period_month == 6 ? round(base_salary * 0.1) : 0                   $ 0,00
+  descuento  Descuento legal          round(base_salary * (country == "AR" ? 0.17 : 0.15))         $ 204.000,00
+  descuento  Descuento previsional    round(haberes_totales * 0.03)                                 $ 37.500,00
+  aporte     Aporte empleador         round(base_salary * (country == "AR" ? 0.29 : 0.23))         $ 348.000,00
 ----------------------------------------------------------------------------------------------------------------
-  haberes_totales_cents                                       125,000,000
-  descuentos_totales_cents                                     24,150,000
-  aportes_totales_cents (employer-side)                        34,800,000
-  final_salary_cents (haberes - descuentos)                   100,850,000
+  Haberes totales                                    $ 1.250.000,00
+  Descuentos totales                                   $ 241.500,00
+  Aportes (empleador)                                  $ 348.000,00
+  Salario final                                      $ 1.008.500,00
 
-Camila Díaz  (job: UY, currency UYU, base salary 6,000,000 cents, 2025-01-01..open)
-  ... (same breakdown; UY rates 15%/23% give final 5,162,500)
+Camila Díaz  (job: UY, currency UYU, base salary UYU 60.000,00, 2025-01-01..open)
+  ... (same breakdown; UY rates 15%/23% give final UYU 51.625,00)
 
-Elena Ríos  (job: AR, currency ARS, base salary 100,000,000 cents, 2026-01-01..open)
-  ... (same breakdown; that open contract gives final 84,850,000)
+Elena Ríos  (job: AR, currency ARS, base salary $ 1.000.000,00, 2026-01-01..open)
+  ... (same breakdown; that open contract gives final $ 848.500,00)
 
-All amounts are integer cents of the contract currency (ARS/UYU).
+Amounts are integer minor units (cents) of the contract currency, shown formatted (ARS/UYU).
 Data was in-memory only; nothing was persisted.
 ```
 
@@ -170,8 +171,8 @@ The same entry point the API uses is a one-liner. In a console
 (`cd backend && ruby bin/rails console`) against the seeded dev data:
 
 ```ruby
-ids = Employee.pluck(:id)                              # or [1, 2, 3, 4]
-results = CalculateLiquidacion.call(employee_ids: ids, period: "2026-03")
+results = CalculateLiquidacion.call(employees: Employee.all, period: "2026-03")
+# equivalent, by id: CalculateLiquidacion.call(employee_ids: [1, 2, 3, 4], period: "2026-03")
 
 results[:results].each do |r|
   if r[:status] == "success"
@@ -185,8 +186,7 @@ end
 
 Inside `scripts/sample_calculation.rb` the in-memory sample handles
 (`ana`, `camila`, `elena`) are available, so you can call
-`CalculateLiquidacion.call(employee_ids: [ana.id, elena.id], period: "2025-09")`
-directly.
+`CalculateLiquidacion.call(employees: [ana, elena], period: "2025-09")` directly.
 
 Note: `CalculateLiquidacion` persists results, so the console call above writes
 to the dev database. Use the sample script for an isolated, side-effect-free

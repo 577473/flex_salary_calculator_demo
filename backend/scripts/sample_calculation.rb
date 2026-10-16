@@ -119,11 +119,24 @@ employees.each do |employee|
   end
 end
 
-results = CalculateLiquidacion.call(employee_ids: employees.map(&:id), period: period)[:results]
+results = CalculateLiquidacion.call(employees: employees, period: period)[:results]
 
 # --- 5. Print a human-readable report --------------------------------------
-def thousands(cents)
-  cents.abs.to_s.reverse.scan(/\d{1,3}/).join(",").reverse
+# Amounts are stored as integer minor units (cents) of the contract currency;
+# the report renders them the way a reader expects for that currency, e.g.
+# "$ 1.200.000,00" for ARS. This mirrors the frontend's
+# Intl.NumberFormat("es-AR", { style: "currency", currency }).
+CURRENCY_SYMBOLS = { "ARS" => "$", "UYU" => "UYU", "USD" => "US$" }.freeze
+
+def format_money(cents, currency)
+  return "—" if cents.nil?
+
+  amount = cents.to_i
+  sign = amount.negative? ? "-" : ""
+  whole, fraction = amount.abs.divmod(100)
+  grouped = whole.to_s.reverse.scan(/\d{1,3}/).join(".").reverse
+  symbol = CURRENCY_SYMBOLS.fetch(currency, currency)
+  "#{sign}#{symbol} #{grouped},#{format('%02d', fraction)}"
 end
 
 puts
@@ -145,23 +158,23 @@ results.each do |result|
   span = job.effective_to ? "#{job.effective_from}..#{job.effective_to}" : "#{job.effective_from}..open"
   puts
   puts "#{employee.name}  (job: #{job.country}, currency #{job.currency}, " \
-       "base salary #{thousands(job.base_salary_cents)} cents, #{span})"
+       "base salary #{format_money(job.base_salary_cents, job.currency)}, #{span})"
   puts "-" * 112
-  puts format("  %-10s %-24s %-56s %12s", "CATEGORY", "ITEM", "FORMULA", "AMOUNT")
+  puts format("  %-10s %-24s %-56s %16s", "CATEGORY", "ITEM", "FORMULA", "AMOUNT")
 
   liquidacion.asignaciones.order(:position).each do |asignacion|
-    puts format("  %-10s %-24s %-56s %12s",
+    puts format("  %-10s %-24s %-56s %16s",
                 asignacion.category, asignacion.description, asignacion.formula,
-                thousands(asignacion.amount_cents))
+                format_money(asignacion.amount_cents, job.currency))
   end
 
   puts "-" * 112
-  puts format("  %-58s %12s", "haberes_totales_cents", thousands(liquidacion.haberes_totales_cents))
-  puts format("  %-58s %12s", "descuentos_totales_cents", thousands(liquidacion.descuentos_totales_cents))
-  puts format("  %-58s %12s", "aportes_totales_cents (employer-side)", thousands(liquidacion.aportes_totales_cents))
-  puts format("  %-58s %12s", "final_salary_cents (haberes - descuentos)", thousands(liquidacion.final_salary_cents))
+  puts format("  %-48s %16s", "Haberes totales", format_money(liquidacion.haberes_totales_cents, job.currency))
+  puts format("  %-48s %16s", "Descuentos totales", format_money(liquidacion.descuentos_totales_cents, job.currency))
+  puts format("  %-48s %16s", "Aportes (empleador)", format_money(liquidacion.aportes_totales_cents, job.currency))
+  puts format("  %-48s %16s", "Salario final", format_money(liquidacion.final_salary_cents, job.currency))
 end
 
 puts
-puts "All amounts are integer cents of the contract currency (ARS/UYU)."
+puts "Amounts are integer minor units (cents) of the contract currency, shown formatted (ARS/UYU)."
 puts "Data was in-memory only; nothing was persisted."

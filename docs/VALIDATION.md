@@ -16,7 +16,7 @@ the success criteria from `specs/001-monthly-salary-calculator/spec.md`.
 | 4 | Verifiable invariants | PASS | See below (golden values, idempotency, final = haberes − descuentos, AR≠UY) |
 | 5 | Period binding | PASS | June vs July follow the 2026-07 raise; out-of-range year → `no_job_for_period` |
 | 6 | Web interface | PASS | US2 validation: Employees → Calculate → Detail in ≤ 2 clicks (SC-006) |
-| 7 | Tests | PASS | RSpec 153/0, Vitest 14/14 (SC-007); see “Suites” |
+| 7 | Tests | PASS | RSpec 156/0, Vitest 14/14 (SC-007); see “Suites” |
 
 Runs are **prepared** by the upstream step (here: `db:seed`, which creates an
 empty Liquidacion + one Asignacion per applicable item for every employee and
@@ -123,7 +123,7 @@ failure, and error codes. Full suites below.
 
 | Check | Result |
 |-------|--------|
-| `backend` `bundle exec rspec` | 153 examples, 0 failures |
+| `backend` `bundle exec rspec` | 156 examples, 0 failures |
 | SimpleCov minimum coverage (line 90 / branch 78) | 95.96% / 84.50% → pass |
 | `backend` `bundle exec rubocop` | no offenses |
 | `backend` `bin/brakeman -q` | 0 warnings |

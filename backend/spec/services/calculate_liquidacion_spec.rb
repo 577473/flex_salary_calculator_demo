@@ -222,4 +222,29 @@ RSpec.describe CalculateLiquidacion do
       expect(Liquidacion.where(employee_id: jobless.id).count).to eq(0)
     end
   end
+
+  describe 'entry points (FR-001: a list of employees + a period)' do
+    it 'accepts Employee records and delegates to the id-based pipeline' do
+      entry = described_class.call(employees: [ employee ], period: period)[:results].first
+
+      expect(entry[:employee_id]).to eq(employee.id)
+      expect(entry[:status]).to eq('success')
+      expect(liquidacion.reload.haberes_totales_cents).to eq(1_000_000)
+    end
+
+    it 'accepts an ActiveRecord relation and preserves order' do
+      other = create(:employee, name: 'Sin Contrato')
+
+      results = described_class.call(
+        employees: Employee.where(id: [ employee.id, other.id ]).order(:id), period: period
+      )[:results]
+
+      expect(results.map { |entry| entry[:employee_id] }).to eq([ employee.id, other.id ])
+    end
+
+    it 'raises when neither employee_ids nor employees is given' do
+      expect { described_class.call(period: period) }
+        .to raise_error(ArgumentError, /employee_ids or employees is required/)
+    end
+  end
 end

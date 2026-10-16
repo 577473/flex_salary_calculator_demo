@@ -15,7 +15,7 @@ cd frontend && npx vitest list
 > minimum / exit 2" message: nothing executes, so measured coverage is ~0 by
 > design. Use the real run (`bundle exec rspec`) when you want pass/fail + coverage.
 
-Totals: **153 backend examples** (RSpec) and **14 frontend tests** (Vitest).
+Totals: **156 backend examples** (RSpec) and **14 frontend tests** (Vitest).
 
 ## Coverage summary
 
@@ -45,7 +45,7 @@ Totals: **153 backend examples** (RSpec) and **14 frontend tests** (Vitest).
 | `cel_evaluator_spec.rb` | 22 | literals, bare bindings, integer arithmetic/division, doubles only via `round`, string/numeric comparisons, boolean logic, ternaries, round half-up (+ optional digits), `min`/`max`, running subtotals, determinism; **failure semantics** (unknown var, bad syntax, non-boolean condition, helper type error, division by zero, non-integer money) → stable codes; error hierarchy |
 | `item_selector_spec.rb` | 6 | effective-range selection across the whole catalog; ordering by category then `effective_from`/`id`; excludes out-of-range templates; year-specific ranges; open-ended (used by the seeds' upstream stand-in) |
 | `period_resolver_spec.rb` | 7 | job covering the period; nil when none; before/after a mid-year change; inclusive bounds; far-future ranges; mid-month effective |
-| `calculate_liquidacion_spec.rb` | 15 | fills **prepared** rows (no row created/deleted) and **derives totals from stored rows**; final invariant + **idempotent re-run**; per-employee failures (`unknown_employee`, `no_job_for_period`, `unsupported_jurisdiction`, `no_applicable_items` for missing/empty run, `formula_invalid`, `formula_error`, unavailable subtotal) leave the run pending with no partial amounts (rollback); mixed batches keep successes/failures independent |
+| `calculate_liquidacion_spec.rb` | 18 | fills **prepared** rows (no row created/deleted) and **derives totals from stored rows**; final invariant + **idempotent re-run**; per-employee failures (`unknown_employee`, `no_job_for_period`, `unsupported_jurisdiction`, `no_applicable_items` for missing/empty run, `formula_invalid`, `formula_error`, unavailable subtotal) leave the run pending with no partial amounts (rollback); mixed batches keep successes/failures independent; **two equivalent entry points** (`employee_ids:` and `employees:` per FR-001) — the list form resolves records to ids, preserves order over a relation, and raises `ArgumentError` when neither is given |
 
 ## REST API — HTTP contract (`spec/requests/`)
 

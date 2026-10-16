@@ -114,7 +114,7 @@ POST /api/v1/liquidaciones/calculate {"employee_ids":[...], "period":"YYYY-MM"}
   │
   ├─#calculate: per-employee/period validation
   │
-  ├─ CalculateLiquidacion.call(employee_ids, period)
+  ├─ CalculateLiquidacion.call(employees: [...], period)   # or employee_ids:
   │     for each employee:
   │       liquidacion = Liquidacion.find_by(employee, period)   → none/empty? no_applicable_items
   │       period_resolver.resolve(employee, period)            → nil? no_job_for_period
