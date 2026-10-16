@@ -31,19 +31,19 @@ const groups = [
     <dl class="totals">
       <div>
         <dt>Haberes</dt>
-        <dd>{{ formatMoney(store.detail.haberes_totales_cents) }}</dd>
+        <dd>{{ formatMoney(store.detail.haberes_totales_cents, store.detail.currency) }}</dd>
       </div>
       <div>
         <dt>Descuentos</dt>
-        <dd>{{ formatMoney(store.detail.descuentos_totales_cents) }}</dd>
+        <dd>{{ formatMoney(store.detail.descuentos_totales_cents, store.detail.currency) }}</dd>
       </div>
       <div>
         <dt>Aportes</dt>
-        <dd>{{ formatMoney(store.detail.aportes_totales_cents) }}</dd>
+        <dd>{{ formatMoney(store.detail.aportes_totales_cents, store.detail.currency) }}</dd>
       </div>
       <div>
         <dt>Salario final</dt>
-        <dd>{{ formatMoney(store.detail.final_salary_cents) }}</dd>
+        <dd>{{ formatMoney(store.detail.final_salary_cents, store.detail.currency) }}</dd>
       </div>
     </dl>
 
@@ -51,7 +51,7 @@ const groups = [
       <h4 data-testid="group-heading">{{ group.label }}</h4>
       <ul>
         <li v-for="item in store.detail.items.filter((item) => item.category === group.key)" :key="item.description">
-          {{ item.description }} — {{ formatMoney(item.amount_cents) }}
+          {{ item.description }} — {{ formatMoney(item.amount_cents, store.detail.currency) }}
           <small data-testid="item-formula">
             ({{ item.formula }} · versión {{ item.formula_version }})
           </small>

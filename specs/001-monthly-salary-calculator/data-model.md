@@ -6,6 +6,11 @@
 ## Conventions
 
 - Monetary values: **Integer cents**, column suffix `_cents`. Never Float.
+- Currency: each contract (`Job`) states its own ISO 4217 `currency`, exactly
+  like its `base_salary_cents`. It is **display-only**: the calculator works on
+  raw integer minor units and never reads it. A run's amounts are denominated in
+  the currency of the Job effective for its period (resolved for formatting; not
+  stored on `Liquidacion`/`Asignacion`). No conversion between currencies.
 - Period: year + month integers. Canonical API representation: `"YYYY-MM"`.
   The same month in different years is a distinct period.
 - Effective ranges: `effective_from` (inclusive) and `effective_to`
@@ -37,6 +42,7 @@ Contractual base conditions for an employee over an effective period range.
 | id | integer PK | |
 | employee_id | FK → Employee | required |
 | country | string(2) | required, ISO 3166-1 alpha-2, upcase |
+| currency | string(3) | required, ISO 4217 alpha-3, upcase; independent of country |
 | base_salary_cents | integer | required, >= 0 |
 | effective_from | date | required |
 | effective_to | date | nullable (open-ended); >= effective_from |
@@ -142,8 +148,9 @@ The run is prepared first, then calculated:
 
 ## Seeded Example Data (FR-012)
 
-- 4 employees; 2 with mid-year base-salary change (two Jobs each) to prove
-  period-bound calculations.
+- 5 employees; three carry a contract history to prove period-bound
+  calculations — Bruno and Diego each have a mid-year base-salary change (two
+  Jobs), and Elena has two closed Jobs then an open one (three Jobs).
 - Countries: **Argentina (AR)** and **Uruguay (UY)** — at least two countries.
 - Base salaries are integer cents approximating a local-currency middle-class
   monthly gross (realistic `_cents` magnitudes):
@@ -151,9 +158,13 @@ The run is prepared first, then calculated:
   - Bruno Sosa (AR): `100_000_000` → `110_000_000` (raise effective 2026-07-01)
   - Camila Díaz (UY): `6_000_000`
   - Diego Araújo (UY): `5_000_000` → `5_500_000` (raise effective 2026-07-01)
-- Currency is not modeled: `_cents` are minor units of the Job country's local
-  currency (AR→ARS, UY→UYU); a single currency per employee, no conversion
-  (see spec.md Assumptions).
+  - Elena Ríos (AR): `80_000_000` → `90_000_000` → `100_000_000` (closed
+    2025-01..06, closed 2025-07..12, open from 2026-01-01)
+- Currency is a contract attribute: every Job states its own ISO 4217 code (the
+  seed uses the local currency, AR→ARS / UY→UYU, but the column is independent of
+  `country`). Amounts are minor units of the Job currency for the period; a run's
+  currency is resolved from that Job purely for display — the calculator never
+  uses it, and there is no conversion (see spec.md Assumptions).
 - A single item catalog (not duplicated per country) with examples covering:
   - literal value (fixed bonus, country-dependent amount
     e.g., `country == "AR" ? 5000000 : 250000`),

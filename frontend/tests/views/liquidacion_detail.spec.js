@@ -27,6 +27,7 @@ const detail = {
   employee_id: 1,
   name: 'Ana García',
   period: '2026-09',
+  currency: 'ARS',
   haberes_totales_cents: 1_225_000,
   descuentos_totales_cents: 240_750,
   aportes_totales_cents: 348_000,
@@ -49,6 +50,7 @@ const pendingDetail = {
   employee_id: 2,
   name: 'Bruno Sosa',
   period: '2026-09',
+  currency: 'UYU',
   pending: true,
   haberes_totales_cents: null,
   descuentos_totales_cents: null,
@@ -73,10 +75,10 @@ describe('LiquidacionDetailView', () => {
     const text = wrapper.text()
     expect(text).toContain('Ana García')
     expect(text).toContain('2026-09')
-    expect(text).toContain(formatMoney(1_225_000))
-    expect(text).toContain(formatMoney(240_750))
-    expect(text).toContain(formatMoney(348_000))
-    expect(text).toContain(formatMoney(984_250))
+    expect(text).toContain(formatMoney(1_225_000, 'ARS'))
+    expect(text).toContain(formatMoney(240_750, 'ARS'))
+    expect(text).toContain(formatMoney(348_000, 'ARS'))
+    expect(text).toContain(formatMoney(984_250, 'ARS'))
   })
 
   it('groups items by category in haber, descuento, aporte order', async () => {

@@ -23,7 +23,9 @@ List employees (with current job info).
 
 ### GET /api/v1/employees/:id
 
-- 200 → `{"employee":{"id","name","jobs":[...]}}`
+- 200 → `{"employee":{"id","name","jobs":[{"id","country","currency",
+  "base_salary_cents","effective_from","effective_to"}]}}` (`currency` is the
+  contract's ISO 4217 code).
 - 404 problem+json: unknown id.
 
 ### POST /api/v1/liquidaciones/calculate
@@ -79,11 +81,13 @@ FR-007); determinism (FR-006).
 
 List Liquidaciones, filtered by required `period`, optional `employee_id`.
 
-- 200 → `{"liquidaciones":[{"id","employee_id","name","period","haberes_totales_cents","descuentos_totales_cents","aportes_totales_cents","final_salary_cents","pending","items_url"}]}`
+- 200 → `{"liquidaciones":[{"id","employee_id","name","period","currency","haberes_totales_cents","descuentos_totales_cents","aportes_totales_cents","final_salary_cents","pending","items_url"}]}`
+- `currency` (ISO 4217) is the currency of the Job effective for the run's
+  period; it is resolved for display and the calculator never reads it.
 - Amounts serialized as strings in `"cents"` fields? **Decision**: numeric
   fields returned as integer cents (`"haberes_totales_cents": 125000000`) — see
   GET /:id below. A **pending** run (not yet calculated) returns its totals and
-  item amounts as `null` and `"pending": true`.
+  item amounts as `null` and `"pending": true` (the currency is still reported).
 - 400 problem+json: missing/invalid `period`.
 
 ### GET /api/v1/liquidaciones/:id
@@ -99,6 +103,7 @@ Detail incl. per-item audit breakdown (FR-009):
     "employee_id": 1,
     "name": "Ana García",
     "period": "2026-09",
+    "currency": "ARS",
     "haberes_totales_cents": 125000000,
     "descuentos_totales_cents": 24150000,
     "aportes_totales_cents": 34800000,
@@ -124,6 +129,12 @@ Detail incl. per-item audit breakdown (FR-009):
 Integers in cents with `_cents` suffix (or `amount_cents`); final `period` is
 `"YYYY-MM"`. No floats anywhere. `null` means "not calculated yet" (pending
 run) and MUST NOT be read as zero.
+
+Every run carries a `currency` (ISO 4217) so a client can format its amounts:
+it is the currency of the Job effective for the period, and is purely
+presentational — amounts are raw minor units and the calculator never uses the
+code. `Job.currency` is the source of truth (a contract states its own
+currency, like its base salary).
 
 ## CORS
 

@@ -53,19 +53,36 @@ load File.expand_path("../db/schema.rb", __dir__)
 ].each { |path| require File.expand_path("../#{path}", __dir__) }
 
 # --- 3. Minimal in-memory sample data --------------------------------------
-def hire(name, country, base_salary_cents)
+# The contract states its currency (like its base salary); the calculator never
+# reads it, it only tells a reader what the minor units below are denominated in.
+def hire(name, country, currency, base_salary_cents, from: Date.new(2025, 1, 1))
   employee = Employee.create!(name: name)
-  Job.create!(employee: employee, country: country, base_salary_cents: base_salary_cents,
-              effective_from: Date.new(2025, 1, 1), effective_to: nil)
+  Job.create!(employee: employee, country: country, currency: currency,
+              base_salary_cents: base_salary_cents,
+              effective_from: from, effective_to: nil)
   employee
 end
 
-# One employee per country so the country-dependent formulas are visible.
+# A new contract never rewrites history: it closes the current one (end date
+# only) and appends a new open one. The old rows are kept for past periods.
+def new_contract(employee, country, currency, base_salary_cents, from:)
+  employee.jobs.where(effective_to: nil).each { |job| job.update!(effective_to: from - 1) }
+  Job.create!(employee: employee, country: country, currency: currency,
+              base_salary_cents: base_salary_cents,
+              effective_from: from, effective_to: nil)
+  employee
+end
+
+# One employee per country so the country-dependent formulas are visible, plus
+# one with a contract history (two closed contracts then an open one).
 # Amounts are monthly middle-class gross salaries in local minor units (cents):
 # AR ≈ 1,200,000 ARS, UY ≈ 60,000 UYU.
-ana = hire("Ana García", "AR", 120_000_000)
-camila = hire("Camila Díaz", "UY", 6_000_000)
-employees = [ ana, camila ]
+ana = hire("Ana García", "AR", "ARS", 120_000_000)
+camila = hire("Camila Díaz", "UY", "UYU", 6_000_000)
+elena = hire("Elena Ríos", "AR", "ARS", 80_000_000, from: Date.new(2025, 1, 1))
+new_contract(elena, "AR", "ARS", 90_000_000, from: Date.new(2025, 7, 1))
+new_contract(elena, "AR", "ARS", 100_000_000, from: Date.new(2026, 1, 1))
+employees = [ ana, camila, elena ]
 
 # The same formula catalog the app seeds (see db/seeds.rb). Items are not
 # country-scoped; country dependence lives inside each formula.
@@ -123,8 +140,12 @@ results.each do |result|
 
   liquidacion = Liquidacion.find(result[:liquidacion][:id])
 
+  # The contract is resolved by period, not assumed to be the newest one.
+  job = PeriodResolver.call(employee, year: period_year, month: period_month)
+  span = job.effective_to ? "#{job.effective_from}..#{job.effective_to}" : "#{job.effective_from}..open"
   puts
-  puts "#{employee.name}  (job: #{employee.jobs.first.country}, base salary #{thousands(employee.jobs.first.base_salary_cents)} cents)"
+  puts "#{employee.name}  (job: #{job.country}, currency #{job.currency}, " \
+       "base salary #{thousands(job.base_salary_cents)} cents, #{span})"
   puts "-" * 112
   puts format("  %-10s %-24s %-56s %12s", "CATEGORY", "ITEM", "FORMULA", "AMOUNT")
 
@@ -142,4 +163,5 @@ results.each do |result|
 end
 
 puts
-puts "All amounts are integer cents. Data was in-memory only; nothing was persisted."
+puts "All amounts are integer cents of the contract currency (ARS/UYU)."
+puts "Data was in-memory only; nothing was persisted."

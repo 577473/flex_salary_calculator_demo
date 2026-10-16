@@ -55,10 +55,10 @@ deterministic results (SC-002); explicit failure instead of silent rules
 | I. Radical Candor: Verified Truth Only | PASS | No simulated integrations; every claim backed by tests (CI). |
 | II. Legislation-Driven Isolation | PASS | Rules isolated per item expression; `country` passed as a formula input; explicit refusal for unsupported jurisdictions; money in Integer cents; no silent cross-country fallback. |
 | III. Test-First (NON-NEGOTIABLE) | PASS | RSpec/Vitest; golden-value tests per formula type and jurisdiction; red-green-refactor. |
-| IV. Rails Convention & Specialist Guidance | PASS w/ deviation | Rails API conventions + service objects followed (per constitution). Deviation: Vue SPA instead of Hotwire UI — user-mandated; see Complexity Tracking. |
+| IV. Rails Convention & Specialist Guidance | PASS | Rails API conventions + service objects followed. Vue 3 SPA frontend is sanctioned by Constitution 1.1.1 (the Hotwire guidance does not apply when the UI is a separate SPA). |
 | V. Auditability & Observability | PASS | Per-liquidacion Asignacion snapshot rows keep formula+version+amount; structured logs; no PII in logs. |
 
-**Gates**: all pass. Deviation (Vue frontend) documented and justified below.
+**Gates**: all pass — no deviations.
 
 ## Project Structure
 
@@ -116,15 +116,12 @@ API documentation. Shared implementation context under a single feature spec.
 
 ## Complexity Tracking
 
-> Critical deviation from Constitution Principle IV (Hotwire UI) — must be justified.
-
-| Violation | Why Needed | Simpler Alternative Rejected Because |
-|-----------|------------|-------------------------------------|
-| Vue 3 SPA instead of Rails Hotwire UI | Explicit user requirement ("Use Vue.js for the frontend") and an independent REST surface is itself a deliverable; SPA cleanly exercises the API. | Rails views/Hotwire served by the API app: contradicts the explicit Vue requirement; would not demonstrate the REST API the demo must expose. |
-
-**Suggested follow-up**: amend constitution (MINOR bump) to allow Vue SPA
-frontends alongside the Rails API; this is a governance action, not executed
-here.
+No constitution deviations. The Vue 3 SPA frontend (explicit user requirement,
+and the independent REST surface the demo must expose) was originally recorded
+here as a deviation from Principle IV's Hotwire UI expectation. Constitution
+1.1.1 (2026-10-15) clarified that the Rails specialist's Hotwire guidance does
+not apply when the UI is a separate SPA, so the SPA is now within the
+constitution rather than a deviation — see `.specify/memory/constitution.md`.
 
 ## Implementation Milestones
 

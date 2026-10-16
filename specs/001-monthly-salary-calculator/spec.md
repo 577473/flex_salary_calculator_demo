@@ -308,8 +308,11 @@ breakdowns are returned.
 - **Money representation**: Amounts use exact decimal values with 2-decimal
   (minor-unit) rounding applied at item level, documented and tested; no
   floating-point money math (constitution Principle II).
-- **Currency**: Single currency per employee (implied by Job); multi-currency
-  conversion is out of scope for v1.
+- **Currency**: Each contract (`Job`) states its own ISO 4217 currency, exactly
+  like its base salary; a run's amounts are minor units of the Job effective for
+  the period. The currency is a display concern only — the calculator never reads
+  it (it works on raw integer minor units) — and currency conversion is out of
+  scope for v1.
 - **Storage**: "Lightweight local or memory storage" is interpreted as a
   file-backed/embedded local database pre-seeded with example data; no
   external database server required for the demo.

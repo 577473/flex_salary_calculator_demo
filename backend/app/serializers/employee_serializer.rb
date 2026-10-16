@@ -18,6 +18,7 @@ class EmployeeSerializer
       {
         id: job.id,
         country: job.country,
+        currency: job.currency,
         base_salary_cents: job.base_salary_cents,
         effective_from: job.effective_from.iso8601,
         effective_to: job.effective_to&.iso8601

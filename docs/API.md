@@ -15,6 +15,21 @@ Amounts are integers in cents with a `_cents` suffix (`haberes_totales_cents`,
 format. **No floats anywhere.** `null` means *not calculated yet* (a pending
 run) and must not be read as zero.
 
+Each amount is denominated in a currency. The currency is a contract attribute:
+`Job.currency` is the ISO 4217 code (like `base_salary_cents` is the amount), and
+a run's `currency` is the one of the Job effective for its period. It is
+**display-only** — the calculator works on raw minor units and never reads it.
+There is no currency conversion.
+
+## Currency of a run
+
+`GET /employees/:id` exposes each job's `currency`. `GET /liquidaciones` and
+`GET /liquidaciones/:id` expose a top-level `currency` for the run (the Job
+currency for the period); a pending run still reports its `currency` even though
+its amounts are `null`. A contract may change currency between periods (a later
+Job with a different `currency`), so the code is resolved per period, not per
+employee.
+
 ## Endpoints
 
 ### GET /api/v1/health
@@ -34,7 +49,7 @@ List employees.
 
 ### GET /api/v1/employees/:id
 
-- `200` → `{"employee":{"id","name","jobs":[{"id","country","base_salary_cents","effective_from","effective_to"}]}}`
+- `200` → `{"employee":{"id","name","jobs":[{"id","country","currency","base_salary_cents","effective_from","effective_to"}]}}`
 - `404` problem+json when the employee does not exist.
 
 ### POST /api/v1/liquidaciones/calculate
@@ -81,6 +96,7 @@ List Liquidaciones for a period. `period` is required; `employee_id` is optional
   {
     "liquidaciones": [
       { "id": 1, "employee_id": 1, "name": "Ana García", "period": "2026-09",
+        "currency": "ARS",
         "haberes_totales_cents": 125000000, "descuentos_totales_cents": 24150000,
         "aportes_totales_cents": 34800000, "final_salary_cents": 100850000,
         "pending": false,
@@ -102,6 +118,7 @@ category in evaluation order: haberes → descuentos → aportes.
   {
     "liquidacion": {
       "id": 1, "employee_id": 1, "name": "Ana García", "period": "2026-09",
+      "currency": "ARS",
       "haberes_totales_cents": 125000000, "descuentos_totales_cents": 24150000,
       "aportes_totales_cents": 34800000, "final_salary_cents": 100850000,
       "pending": false,

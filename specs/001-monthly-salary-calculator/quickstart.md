@@ -28,8 +28,9 @@ npm run dev                   # http://localhost:5173
 `ruby bin/rails …` works on Windows and macOS/Linux (on macOS/Linux the bare
 executable `bin/rails …` also works; on Windows the `ruby` prefix is required).
 
-`ruby bin/rails db:prepare` seeds: 4 employees (2 with mid-year salary changes),
-Job history, and one AsignacionTemplate catalog whose formulas cover reference,
+`ruby bin/rails db:prepare` seeds: 5 employees (three with multi-Job contract
+histories — mid-year raises plus a two-closed/one-open Job sequence), one
+AsignacionTemplate catalog whose formulas cover reference,
 arithmetic, conditional/ternary, country-dependent, and subtotal-dependent
 behavior across AR and UY (integer literals appear inside formulas; pure-literal
 evaluation is covered by `cel_evaluator_spec.rb`). It also **prepares a pending

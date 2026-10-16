@@ -16,7 +16,7 @@ the success criteria from `specs/001-monthly-salary-calculator/spec.md`.
 | 4 | Verifiable invariants | PASS | See below (golden values, idempotency, final = haberes − descuentos, AR≠UY) |
 | 5 | Period binding | PASS | June vs July follow the 2026-07 raise; out-of-range year → `no_job_for_period` |
 | 6 | Web interface | PASS | US2 validation: Employees → Calculate → Detail in ≤ 2 clicks (SC-006) |
-| 7 | Tests | PASS | RSpec 137/0, Vitest 13/13 (SC-007); see “Suites” |
+| 7 | Tests | PASS | RSpec 153/0, Vitest 14/14 (SC-007); see “Suites” |
 
 Runs are **prepared** by the upstream step (here: `db:seed`, which creates an
 empty Liquidacion + one Asignacion per applicable item for every employee and
@@ -37,7 +37,12 @@ live API for the seeded employees, period `2026-09`:
 
 AR vs UY discount/aporte rates differ (17%/29% vs 15%/23%) — country-dependent
 formula verified. The golden reference for all fixtures also lives as a spec
-(`backend/spec/golden/demo_calculation_spec.rb`).
+(`backend/spec/golden/demo_calculation_spec.rb` and, for contract history,
+`backend/spec/golden/job_history_spec.rb`).
+
+Each run also reports its contract `currency` (Ana → `ARS`, Camila → `UYU`),
+resolved from the Job effective for the period; it is display-only and the
+numbers above are unaffected by it.
 
 Hand-computed detail (Ana AR): salario 120,000,000 + bono 5,000,000 → haberes
 125,000,000; `round(120,000,000·0.17)` = 20,400,000 + `round(125,000,000·0.03)` =
@@ -46,7 +51,7 @@ final = 125,000,000 − 24,150,000 = **100,850,000**.
 
 ## SC-002 — repeat calculation → identical totals, no duplicates
 
-- Repeat POST for `2026-09` → list returns exactly **4** rows (unique
+- Repeat POST for `2026-09` → list returns exactly **5** rows (unique
   `[employee_id, period_year, period_month]`); Ana still
   haberes **125,000,000** / final **100,850,000** — byte-identical.
 
@@ -64,13 +69,20 @@ Both match hand-computed values. Year binding: `period=2024-09` for Ana (job
 effective from 2025-01-01) → **`no_job_for_period`** (SC-005), never wrong
 zeros.
 
+Contract history is resolved purely by period: an employee with closed and open
+Jobs (seeded as `Elena Ríos`) is paid per the Job covering the requested month, and a given
+(employee, period) always yields the same totals regardless of when it is
+calculated — verified in `backend/spec/golden/job_history_spec.rb` (closed Job C
+across periods, open Job A across periods, closed Job B at its matching period,
+plus historical recalculation and Job-history immutability).
+
 ## SC-004 — 50-employee run < 10 s
 
 Created 50 synthetic AR employees + jobs in the dev DB and measured the HTTP
 `POST /liquidaciones/calculate` for all 50 (`2026-09`):
 
 - **elapsed: 3,236 ms** (well under the 10 s budget), **50/50 success**,
-  0 failures. Benchmark records removed afterwards (DB back to the 4 seeded
+  0 failures. Benchmark records removed afterwards (DB back to the 5 seeded
   employees).
 
 ## SC-005 — explicit errors, no incorrect persisted values
@@ -111,12 +123,12 @@ failure, and error codes. Full suites below.
 
 | Check | Result |
 |-------|--------|
-| `backend` `bundle exec rspec` | 137 examples, 0 failures |
-| SimpleCov minimum coverage (line 90 / branch 78) | 95.83% / 85.50% → pass |
+| `backend` `bundle exec rspec` | 153 examples, 0 failures |
+| SimpleCov minimum coverage (line 90 / branch 78) | 95.96% / 84.50% → pass |
 | `backend` `bundle exec rubocop` | no offenses |
 | `backend` `bin/brakeman -q` | 0 warnings |
 | `backend` `bundle exec bundler-audit check --update` | 0 vulnerabilities |
-| `frontend` `npm run test` | 13/13 passed |
+| `frontend` `npm run test` | 14/14 passed |
 | `frontend` `npm run build` | builds successfully |
 
 ## Reproducing

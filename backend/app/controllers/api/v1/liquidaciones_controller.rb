@@ -7,12 +7,12 @@ module Api
         year, month = period_from_params!
         liquidaciones = Liquidacion.where(period_year: year, period_month: month)
         liquidaciones = liquidaciones.where(employee_id: params[:employee_id]) if params[:employee_id].present?
-        liquidaciones = liquidaciones.includes(:employee).order(:employee_id, :id)
+        liquidaciones = liquidaciones.includes(employee: :jobs).order(:employee_id, :id)
         render json: LiquidacionSerializer.list(liquidaciones)
       end
 
       def show
-        liquidacion = Liquidacion.includes(:employee, :asignaciones).find(params[:id])
+        liquidacion = Liquidacion.includes(:asignaciones, employee: :jobs).find(params[:id])
         render json: LiquidacionSerializer.show(liquidacion)
       end
 

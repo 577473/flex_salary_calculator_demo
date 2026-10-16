@@ -1,21 +1,31 @@
 # Idempotent demo data (FR-012). Safe to re-run: existing records are updated, never duplicated.
-# Mirrors the golden fixture in spec/golden/demo_calculation_spec.rb.
+# Mirrors the golden fixtures in spec/golden/demo_calculation_spec.rb (Ana/Bruno/
+# Camila/Diego) and spec/golden/job_history_spec.rb (Elena: two closed Jobs + one
+# open Job).
 # `ItemSelector` is required here for the upstream preparation step (below).
 
 EMPLOYEES = [
   { name: 'Ana García' },
   { name: 'Bruno Sosa' },
   { name: 'Camila Díaz' },
-  { name: 'Diego Araújo' }
+  { name: 'Diego Araújo' },
+  { name: 'Elena Ríos' }
 ].freeze
 
+# Each contract states its own currency, exactly like its base salary. It is a
+# display concern only: the calculator works on raw integer minor units.
 JOBS = [
-  { employee: 'Ana García', country: 'AR', base_salary_cents: 120_000_000, effective_from: Date.new(2025, 1, 1), effective_to: nil },
-  { employee: 'Bruno Sosa', country: 'AR', base_salary_cents: 100_000_000, effective_from: Date.new(2025, 1, 1), effective_to: Date.new(2026, 6, 30) },
-  { employee: 'Bruno Sosa', country: 'AR', base_salary_cents: 110_000_000, effective_from: Date.new(2026, 7, 1), effective_to: nil },
-  { employee: 'Camila Díaz', country: 'UY', base_salary_cents: 6_000_000, effective_from: Date.new(2025, 1, 1), effective_to: nil },
-  { employee: 'Diego Araújo', country: 'UY', base_salary_cents: 5_000_000, effective_from: Date.new(2025, 1, 1), effective_to: Date.new(2026, 6, 30) },
-  { employee: 'Diego Araújo', country: 'UY', base_salary_cents: 5_500_000, effective_from: Date.new(2026, 7, 1), effective_to: nil }
+  { employee: 'Ana García', country: 'AR', currency: 'ARS', base_salary_cents: 120_000_000, effective_from: Date.new(2025, 1, 1), effective_to: nil },
+  { employee: 'Bruno Sosa', country: 'AR', currency: 'ARS', base_salary_cents: 100_000_000, effective_from: Date.new(2025, 1, 1), effective_to: Date.new(2026, 6, 30) },
+  { employee: 'Bruno Sosa', country: 'AR', currency: 'ARS', base_salary_cents: 110_000_000, effective_from: Date.new(2026, 7, 1), effective_to: nil },
+  { employee: 'Camila Díaz', country: 'UY', currency: 'UYU', base_salary_cents: 6_000_000, effective_from: Date.new(2025, 1, 1), effective_to: nil },
+  { employee: 'Diego Araújo', country: 'UY', currency: 'UYU', base_salary_cents: 5_000_000, effective_from: Date.new(2025, 1, 1), effective_to: Date.new(2026, 6, 30) },
+  { employee: 'Diego Araújo', country: 'UY', currency: 'UYU', base_salary_cents: 5_500_000, effective_from: Date.new(2026, 7, 1), effective_to: nil },
+  # Elena holds a contract history — two closed Jobs then an open one — so a run
+  # resolves the Job covering the requested period (mirrors job_history_spec.rb).
+  { employee: 'Elena Ríos', country: 'AR', currency: 'ARS', base_salary_cents: 80_000_000, effective_from: Date.new(2025, 1, 1), effective_to: Date.new(2025, 6, 30) },
+  { employee: 'Elena Ríos', country: 'AR', currency: 'ARS', base_salary_cents: 90_000_000, effective_from: Date.new(2025, 7, 1), effective_to: Date.new(2025, 12, 31) },
+  { employee: 'Elena Ríos', country: 'AR', currency: 'ARS', base_salary_cents: 100_000_000, effective_from: Date.new(2026, 1, 1), effective_to: nil }
 ].freeze
 
 TEMPLATES = [
@@ -35,7 +45,7 @@ JOBS.each do |data|
   job = employee.jobs.find_or_initialize_by(
     effective_from: data[:effective_from]
   )
-  job.assign_attributes(data.slice(:country, :base_salary_cents, :effective_to))
+  job.assign_attributes(data.slice(:country, :currency, :base_salary_cents, :effective_to))
   job.save!
 end
 

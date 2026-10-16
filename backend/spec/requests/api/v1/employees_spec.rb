@@ -40,6 +40,7 @@ RSpec.describe 'Employees API', type: :request do
         {
           'id' => employee.jobs.first.id,
           'country' => 'AR',
+          'currency' => 'ARS',
           'base_salary_cents' => 1_200_000,
           'effective_from' => '2025-01-01',
           'effective_to' => nil

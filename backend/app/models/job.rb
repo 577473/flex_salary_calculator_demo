@@ -4,9 +4,14 @@ class Job < ApplicationRecord
   belongs_to :employee
 
   before_validation :upcase_country
+  before_validation :upcase_currency
 
   validates :country, presence: true
   validates :country, format: { with: /\A[A-Z]{2}\z/, message: :invalid_iso_code }
+  # The contract states its currency (ISO 4217), like it states its base salary.
+  # The calculator never reads it: amounts are raw minor units of this currency.
+  validates :currency, presence: true
+  validates :currency, format: { with: /\A[A-Z]{3}\z/, message: :invalid_iso_code }
   validates :base_salary_cents, presence: true,
             numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validates :effective_from, presence: true
@@ -26,6 +31,10 @@ class Job < ApplicationRecord
 
   def upcase_country
     self.country = country.to_s.strip.upcase
+  end
+
+  def upcase_currency
+    self.currency = currency.to_s.strip.upcase
   end
 
   def effective_to_not_before_from

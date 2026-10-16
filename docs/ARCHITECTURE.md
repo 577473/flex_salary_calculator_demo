@@ -170,16 +170,21 @@ serializers never compute money; formulas are data (CEL), never code.
 
 ## Seeds overview (`backend/db/seeds.rb`, idempotent)
 
-4 employees (synthetic names — no real-person PII), 2 countries, 7 templates
+5 employees (synthetic names — no real-person PII), 2 countries, 7 templates
 (one catalog; country gates inside the formulas):
 
-- `Ana García` (AR, 120,000,000) — single job from 2025-01-01.
-- `Bruno Sosa` (AR, 100,000,000 → 110,000,000) — mid-year raise at 2026-07-01.
-- `Camila Díaz` (UY, 6,000,000) — single job.
-- `Diego Araújo` (UY, 5,000,000 → 5,500,000) — mid-year raise at 2026-07-01.
+- `Ana García` (AR / ARS, 120,000,000) — single job from 2025-01-01.
+- `Bruno Sosa` (AR / ARS, 100,000,000 → 110,000,000) — mid-year raise at 2026-07-01.
+- `Camila Díaz` (UY / UYU, 6,000,000) — single job.
+- `Diego Araújo` (UY / UYU, 5,000,000 → 5,500,000) — mid-year raise at 2026-07-01.
+- `Elena Ríos` (AR / ARS, 80,000,000 → 90,000,000 → 100,000,000) — two closed
+  jobs (2025-01..06, 2025-07..12) then an open one from 2026-01-01; exercises
+  per-period Job resolution (mirrors `spec/golden/job_history_spec.rb`).
 
-(base salaries in integer cents — approximate middle-class monthly gross in each
-country's local currency)
+(base salaries in integer cents, approximate middle-class monthly gross). Each
+contract states its own `currency` (the seed uses the local one, AR→ARS /
+UY→UYU); it is a display concern only — the calculator never reads it, and a
+run's currency is resolved from the Job effective for the period.
 
 Single item catalog (not duplicated per country; country gates inside formulas):
 

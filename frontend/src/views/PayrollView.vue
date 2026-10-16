@@ -75,10 +75,10 @@ async function calculate() {
             <RouterLink :to="`/liquidaciones/${liquidacion.id}`">{{ liquidacion.name }}</RouterLink>
             <span v-if="liquidacion.pending" class="pending" data-testid="pending-badge">Pendiente</span>
           </td>
-          <td>{{ formatMoney(liquidacion.haberes_totales_cents) }}</td>
-          <td>{{ formatMoney(liquidacion.descuentos_totales_cents) }}</td>
-          <td>{{ formatMoney(liquidacion.aportes_totales_cents) }}</td>
-          <td>{{ formatMoney(liquidacion.final_salary_cents) }}</td>
+          <td>{{ formatMoney(liquidacion.haberes_totales_cents, liquidacion.currency) }}</td>
+          <td>{{ formatMoney(liquidacion.descuentos_totales_cents, liquidacion.currency) }}</td>
+          <td>{{ formatMoney(liquidacion.aportes_totales_cents, liquidacion.currency) }}</td>
+          <td>{{ formatMoney(liquidacion.final_salary_cents, liquidacion.currency) }}</td>
         </tr>
       </tbody>
     </table>

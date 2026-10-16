@@ -15,24 +15,25 @@ cd frontend && npx vitest list
 > minimum / exit 2" message: nothing executes, so measured coverage is ~0 by
 > design. Use the real run (`bundle exec rspec`) when you want pass/fail + coverage.
 
-Totals: **137 backend examples** (RSpec) and **13 frontend tests** (Vitest).
+Totals: **153 backend examples** (RSpec) and **14 frontend tests** (Vitest).
 
 ## Coverage summary
 
 | Area | Files | Examples | Verifies |
 |------|-------|----------|----------|
-| Domain models | `spec/models/` | 53 | Data integrity: validations, enums, uniqueness, effective ranges, no-overlap, period uniqueness, final-salary invariant, pending vs calculated state |
+| Domain models | `spec/models/` | 59 | Data integrity: validations, enums, uniqueness, effective ranges, no-overlap, period uniqueness, final-salary invariant, pending vs calculated state, contract currency |
 | Core services | `spec/services/` | 50 | The calculation itself: formula evaluation, item selection, period resolution, orchestration, idempotency, failures, aggregation from stored rows |
-| REST API | `spec/requests/` | 23 | HTTP contract: status codes, error envelope, response shapes, integer-cent money, pending flag / null amounts |
-| Golden values | `spec/golden/` | 11 | Hand-computed end-to-end totals + audit trail + idempotency |
-| Frontend views | `frontend/tests/` | 13 | Rendering, grouping, empty/missing states, money formatting (no fake zeros) |
+| REST API | `spec/requests/` | 24 | HTTP contract: status codes, error envelope, response shapes, integer-cent money, pending flag / null amounts, per-period currency |
+| Golden values | `spec/golden/` | 20 | Hand-computed end-to-end totals + audit trail + idempotency; contract history (open/closed Jobs) resolved by period |
+| Frontend views | `frontend/tests/` | 14 | Rendering, grouping, empty/missing states, money formatting (no fake zeros), currency-aware formatting |
 
 ## Domain models — data integrity (`spec/models/`)
 
 | Spec | Examples | Covers |
 |------|----------|--------|
 | `employee_spec.rb` | 4 | name presence/length; `jobs` / `liquidaciones` associations |
-| `job_spec.rb` | 11 | country ISO alpha-2 (upcased); `effective_to` not before `effective_from`; open-ended ranges; **no-overlap** (contiguous and gapped ranges allowed) |
+| `job_spec.rb` | 15 | country ISO alpha-2 (upcased); **currency ISO alpha-3 (upcased, independent of country)**; `effective_to` not before `effective_from`; open-ended ranges; **no-overlap** (contiguous and gapped ranges allowed) |
+| `currency_spec.rb` | 2 | `Currency.for_country` maps seeded jurisdictions (AR→ARS, UY→UYU) and returns nil otherwise |
 | `asignacion_template_spec.rb` | 11 | category enum (haber/descuento/aporte); version defaults to 1; **unique description per category**; same description allowed in another category; effective range |
 | `liquidacion_spec.rb` | 16 | required period; nullable totals with `allow_nil`; **pending vs calculated** (all-or-none); **unique employee+period** (same month in another year allowed); `final_salary == haberes − descuentos`; associations |
 | `asignacion_spec.rb` | 11 | presence validations; **`amount_cents` optional** (pending) and integer when present; `calculated?`; category enum; `liquidacion` / `template` associations |
@@ -52,9 +53,11 @@ Totals: **137 backend examples** (RSpec) and **13 frontend tests** (Vitest).
 |------|----------|--------|
 | `calculate_spec.rb` | 10 | 400 problem+json (missing/empty `employee_ids`, missing/malformed/out-of-range `period`); 422 when every employee is unknown; 200 per-employee envelope (success + failure); `no_applicable_items` when no run was prepared; stable failure codes; unknown employee inside a mixed batch |
 | `employees_spec.rb` | 4 | list; empty list; show with jobs; 404 problem+json |
-| `liquidaciones_spec.rb` | 9 | list by **required** period with integer-cent amounts; pending runs exposed with `pending: true` and **null totals**; `employee_id` filter; 400s; detail with breakdown (pending item `amount_cents` null); item ordering (haber→descuento→aporte→position); 404 |
+| `liquidaciones_spec.rb` | 10 | list by **required** period with integer-cent amounts; run **currency derived from the Job effective for the period** (can differ between periods); pending runs exposed with `pending: true` and **null totals**; `employee_id` filter; 400s; detail with breakdown (pending item `amount_cents` null); item ordering (haber→descuento→aporte→position); 404 |
 
-## Golden values — end-to-end truth (`spec/golden/demo_calculation_spec.rb`, 11)
+## Golden values — end-to-end truth (`spec/golden/`, 20)
+
+### `demo_calculation_spec.rb` (11)
 
 - **Regular month** `2026-03`: Ana (AR), Bruno (AR), Camila (UY), Diego (UY) — exact hand-computed totals.
 - **After mid-year raise** `2026-08`: Bruno (new base), Diego (new base) — different totals.
@@ -63,6 +66,21 @@ Totals: **137 backend examples** (RSpec) and **13 frontend tests** (Vitest).
 - Each case first prepares a pending run (empty Liquidacion + items) — the
   spec-level stand-in for the upstream step — then calculates it.
 
+### `job_history_spec.rb` (9)
+
+One employee with two **closed** contracts and one **open** contract
+(`C: 2025-01..06`, `B: 2025-07..12`, `A: 2026-01..open`, each a different base).
+Job rows are created by the fixture (the upstream stand-in), never by the
+calculator. Covers:
+
+- **a) closed Job C, different periods** — regular vs extra-hours month.
+- **b) open Job A, different periods** — regular vs aguinaldo month.
+- **c) closed Job B, matching period** — plus inclusive month boundaries
+  (Jun→C, Jul→B, Dec→B, Jan→A).
+- **Determinism** — a historical period recalculated after a later open-job
+  period yields identical totals; per-period re-runs leave one run with no
+  duplicate rows; the calculator never mutates the contract history.
+
 Expected values are hand-computed from the seed formulas — never derived from the
 implementation.
 
@@ -70,7 +88,7 @@ implementation.
 
 | Spec | Tests | Covers |
 |------|-------|--------|
-| `money.spec.js` | 4 | `formatMoney`/`formatPeriod`; **null/undefined render as "—"** (pending) while a real `0` still renders as money |
+| `money.spec.js` | 5 | `formatMoney`/`formatPeriod`; **null/undefined render as "—"** (pending) while a real `0` still renders as money; amounts formatted in the given currency (ARS/UYU) with an ARS fallback |
 | `liquidacion_detail.spec.js` | 4 | totals rendered as formatted money; items grouped haber→descuento→aporte; pending notice with dashes (no fake zeros); missing-result state with **no fake zeros** |
 | `payroll_list.spec.js` | 5 | loads/renders employees; shows final totals after calculation and reports failures without fake zeros; pending run marked and rendered with dashes; empty state when the period has no results; blocks calculation when no period is selected |
 

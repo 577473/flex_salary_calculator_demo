@@ -70,6 +70,7 @@ describe('PayrollView (list)', () => {
         employee_id: 1,
         name: 'Ana García',
         period: '2026-09',
+        currency: 'ARS',
         haberes_totales_cents: 1_225_000,
         descuentos_totales_cents: 240_750,
         aportes_totales_cents: 348_000,
@@ -85,7 +86,7 @@ describe('PayrollView (list)', () => {
     await flush()
 
     expect(calculatePayroll).toHaveBeenCalledWith([1, 2], '2026-09')
-    expect(wrapper.text()).toContain(formatMoney(984_250))
+    expect(wrapper.text()).toContain(formatMoney(984_250, 'ARS'))
     expect(wrapper.text()).toContain('no_job_for_period')
     expect(wrapper.text()).toContain('No contractual Job found for 2026-09')
 
@@ -124,6 +125,7 @@ describe('PayrollView (list)', () => {
         employee_id: 1,
         name: 'Ana García',
         period: '2026-09',
+        currency: 'ARS',
         pending: true,
         haberes_totales_cents: null,
         descuentos_totales_cents: null,

@@ -3,6 +3,7 @@ require 'rails_helper'
 RSpec.describe Job, type: :model do
   describe 'validations' do
     it { is_expected.to validate_presence_of(:country) }
+    it { is_expected.to validate_presence_of(:currency) }
     it { is_expected.to validate_presence_of(:base_salary_cents) }
     it { is_expected.to validate_presence_of(:effective_from) }
     it { is_expected.to validate_numericality_of(:base_salary_cents).is_greater_than_or_equal_to(0) }
@@ -18,6 +19,26 @@ RSpec.describe Job, type: :model do
     it 'rejects non ISO 3166-1 alpha-2 values' do
       job = build(:job, country: 'ARG')
       expect(job).not_to be_valid
+    end
+  end
+
+  describe 'currency contract attribute' do
+    it 'upcases the currency code before validation' do
+      job = build(:job, currency: 'ars')
+      job.valid?
+      expect(job.currency).to eq('ARS')
+    end
+
+    it 'rejects non ISO 4217 three-letter values' do
+      job = build(:job, currency: 'AR')
+      expect(job).not_to be_valid
+      expect(job.errors[:currency]).to be_present
+    end
+
+    it 'is independent of the country (a contract states its own currency)' do
+      job = build(:job, country: 'UY', currency: 'USD')
+      expect(job).to be_valid
+      expect(job.currency).to eq('USD')
     end
   end
 

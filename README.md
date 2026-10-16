@@ -13,6 +13,8 @@ applicable rule); the calculator evaluates the stored formulas, writes each
 item's amount, and derives the totals from those rows.
 
 - Money is always **integer cents** (`_cents`) — never floats.
+- Each contract states its own **currency** (ISO 4217, like its base salary);
+  amounts are minor units of it and the code is used for display only.
 - Recalculation is deterministic and idempotent per employee + period.
 - Explicit errors, never silent/wrong zeros.
 
@@ -54,11 +56,11 @@ npm run dev                 # http://localhost:5173
 > **macOS/Linux:** the `ruby bin/rails …` form works too. You can also use
 > `./bin/rails …` directly (the script is executable there).
 
-`ruby bin/rails db:prepare` seeds 4 employees (2 with mid-year salary changes),
-one country-aware item-formula catalog, and a **pending payroll run** (empty
-Liquidacion + one item per applicable rule) for every employee for every month
-in 2025-01..2026-12. The calculator then fills those runs — it never creates the
-items itself. Seeding is idempotent — safe to rerun.
+`ruby bin/rails db:prepare` seeds 5 employees (three with multi-Job contract
+histories), one country-aware item-formula catalog, and a **pending payroll run**
+(empty Liquidacion + one item per applicable rule) for every employee for every
+month in 2025-01..2026-12. The calculator then fills those runs — it never
+creates the items itself. Seeding is idempotent — safe to rerun.
 
 ### Alternative: run both with the Procfile
 
@@ -98,12 +100,17 @@ in the script itself.
   It spins up a throwaway **in-memory** SQLite just to back the ActiveRecord
   models; nothing is written to disk and it disappears when the script exits.
 - **Minimal sample data** (edit it freely): one Argentina employee (Ana García,
-  base 120,000,000 cents = 1,200,000 ARS) and one Uruguay employee (Camila Díaz,
-  6,000,000 cents = 60,000 UYU) — approximate middle-class monthly gross
-  salaries in each country's local currency — plus the same 7-item country-aware
-  formula catalog the app seeds (salario base, bono,
-  aguinaldo, extra horas, descuento legal, descuento previsional, aporte
-  empleador).
+  contract AR / ARS, base 120,000,000 cents = 1,200,000 ARS), one Uruguay
+  employee (Camila Díaz, contract UY / UYU, 6,000,000 cents = 60,000 UYU), and
+  one employee with a **contract history** (Elena Ríos: closed 2025-01..06 at
+  80,000,000, closed 2025-07..12 at 90,000,000, open from 2026-01-01 at
+  100,000,000) — approximate middle-class monthly gross salaries in the contract
+  currency — plus the same 7-item country-aware formula catalog the app seeds
+  (salario base, bono, aguinaldo, extra horas, descuento legal, descuento
+  previsional, aporte empleador).
+- The contract is **resolved by period** (`PeriodResolver`): a run for a past
+  month uses the closed contract that covered it, so the printed job — and the
+  totals — change with the requested period.
 - It prepares the run first (an empty `Liquidacion` plus one `Asignacion` per
   catalog item — standing in for the upstream step that owns item creation), then
   calls `CalculateLiquidacion.call(employee_ids:, period:)`, and prints the
@@ -122,14 +129,16 @@ bundle exec ruby scripts/sample_calculation.rb 2026-06    # any YYYY-MM
 
 The single argument is the period in `YYYY-MM` form; it defaults to `2026-03`.
 Try `2026-06` (Extra horas activates) or `2026-12` (Aguinaldo activates) to see
-the conditional formulas change the totals.
+the conditional formulas change the totals. Try `2025-09` to see Elena paid
+under her **closed** 2025 contract (base 90,000,000, final 76,850,000) rather
+than her open 2026 one.
 
 ### Sample output
 
 ```text
 Salary calculation for period 2026-03
 ================================================================================================================
-Ana García  (job: AR, base salary 120,000,000 cents)
+Ana García  (job: AR, currency ARS, base salary 120,000,000 cents, 2025-01-01..open)
 ----------------------------------------------------------------------------------------------------------------
   CATEGORY   ITEM                     FORMULA                                                        AMOUNT
   haber      Salario base             base_salary                                               120,000,000
@@ -145,10 +154,14 @@ Ana García  (job: AR, base salary 120,000,000 cents)
   aportes_totales_cents (employer-side)                        34,800,000
   final_salary_cents (haberes - descuentos)                   100,850,000
 
-Camila Díaz  (job: UY, base salary 6,000,000 cents)
+Camila Díaz  (job: UY, currency UYU, base salary 6,000,000 cents, 2025-01-01..open)
   ... (same breakdown; UY rates 15%/23% give final 5,162,500)
 
-All amounts are integer cents. Data was in-memory only; nothing was persisted.
+Elena Ríos  (job: AR, currency ARS, base salary 100,000,000 cents, 2026-01-01..open)
+  ... (same breakdown; that open contract gives final 84,850,000)
+
+All amounts are integer cents of the contract currency (ARS/UYU).
+Data was in-memory only; nothing was persisted.
 ```
 
 ### Calling the core directly
@@ -171,8 +184,8 @@ end
 ```
 
 Inside `scripts/sample_calculation.rb` the in-memory sample handles
-(`ana`, `camila`) are available, so you can call
-`CalculateLiquidacion.call(employee_ids: [ana.id, camila.id], period: "2026-03")`
+(`ana`, `camila`, `elena`) are available, so you can call
+`CalculateLiquidacion.call(employee_ids: [ana.id, elena.id], period: "2025-09")`
 directly.
 
 Note: `CalculateLiquidacion` persists results, so the console call above writes

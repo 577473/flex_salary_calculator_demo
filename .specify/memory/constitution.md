@@ -27,6 +27,20 @@ Sync Impact Report
     values unchanged. Reflected in data-model.md, contracts/{cel,api}.md, and
     docs/ARCHITECTURE.md.
   - Follow-up TODOs: none.
+- Amendment 1.1.0 -> 1.1.1 (2026-10-15):
+  - Clarified Principle IV and the Technology & Domain Constraints to match the
+    verified stack: Rails 8.1+ API-only, Ruby 3.3+ (verified 4.0.7), SQLite,
+    Vue 3 + Vite SPA, synchronous (no background processing). Noted the Rails
+    specialist Hotwire guidance does not apply (UI is a separate SPA).
+  - Clarified the Money constraint: amounts are integer minor units denominated
+    in the contract (`Job`) currency for the period, carried as an explicit ISO
+    4217 code and used for display only (no conversion; the calculator never
+    reads it).
+  - Impact: wording/accuracy only; no principle removed or redefined, and no
+    calculation code or golden values affected. Reflects the currency feature
+    (tasks.md Phase 8, T050–T058); reflected in spec.md, data-model.md,
+    contracts/api.md, docs/{API,ARCHITECTURE,TESTS,VALIDATION}.md, README.md.
+  - Follow-up TODOs: none.
 -->
 
 # Flex Salary Calculator Constitution
@@ -86,15 +100,16 @@ the executable specification of legislation.
 
 ### IV. Rails Convention & Specialist Guidance
 
-The application is Ruby on Rails (7.2+ with Ruby 3.3+) and MUST follow Rails
-conventions: ActiveRecord for persistence, strong parameters, RESTful routing,
-Zeitwerk-compatible naming, and service objects for business logic that does
-not belong in models or controllers. All coding work MUST follow the project's
-Rails specialist guidance at
+The application is Ruby on Rails (8.1+, API-only, with Ruby 3.3+; verified on
+Ruby 4.0.7) and MUST follow Rails conventions: ActiveRecord for persistence,
+strong parameters, RESTful routing, Zeitwerk-compatible naming, and service
+objects for business logic that does not belong in models or controllers. All
+coding work MUST follow the project's Rails specialist guidance at
 `https://github.com/ChrisRoyse/610ClaudeSubagents/raw/refs/heads/main/agents/ruby-on-rails-specialist.md`
-(including its security hardening, N+1 prevention, Hotwire, and testing
-requirements). Non-obvious framework choices MUST cite guidance or Rails docs
-rather than personal preference.
+(including its security hardening, N+1 prevention, and testing requirements;
+its Hotwire guidance does not apply because the UI is a separate Vue 3 SPA).
+Non-obvious framework choices MUST cite guidance or Rails docs rather than
+personal preference.
 
 **Rationale**: Convention-over-configuration only pays off when everyone
 (including AI agents) applies the same conventions consistently.
@@ -113,11 +128,14 @@ untraceable number cannot be explained to an auditor or regulator.
 
 ## Technology & Domain Constraints
 
-- Stack: Ruby 3.3+, Rails 7.2+, PostgreSQL 16+, Hotwire for UI; background
-  processing via Solid Queue or Sidekiq.
-- Money: integer minor units with an explicit currency code per amount;
-  exchange-rate handling (if present) MUST be versioned and sourced from a
-  single documented provider.
+- Stack: Ruby 3.3+ (verified on 4.0.7), Rails 8.1+ API-only, SQLite for
+  storage, and a Vue 3 + Vite SPA for the UI. v1 runs synchronously — no
+  background processing or Solid Queue/Sidekiq.
+- Money: integer minor units; every amount is denominated in the currency of
+  the contract (`Job`) effective for its period, which carries an explicit
+  ISO 4217 code. Currency is a display concern — the calculator never reads it
+  and there is no conversion. Exchange-rate handling (if ever present) MUST be
+  versioned and sourced from a single documented provider.
 - Data protection: employee PII is subject to GDPR-equivalent handling —
   encryption at rest, minimal retention, no PII in logs or test fixtures
   (factories use synthetic data).
@@ -157,4 +175,4 @@ untraceable number cannot be explained to an auditor or regulator.
 - Runtime development guidance is maintained at the Rails specialist URL cited
   in Principle IV; guidance updates MUST be consistent with this constitution.
 
-**Version**: 1.1.0 | **Ratified**: 2026-10-07 | **Last Amended**: 2026-10-14
+**Version**: 1.1.1 | **Ratified**: 2026-10-07 | **Last Amended**: 2026-10-15

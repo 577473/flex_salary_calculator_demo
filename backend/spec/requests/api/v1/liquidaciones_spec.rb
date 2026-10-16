@@ -13,6 +13,10 @@ RSpec.describe 'Liquidaciones API', type: :request do
   end
 
   before do
+    create(:job, employee: ana, country: 'AR', currency: 'ARS', base_salary_cents: 1_200_000,
+                 effective_from: Date.new(2025, 1, 1), effective_to: nil)
+    create(:job, employee: bruno, country: 'AR', currency: 'ARS', base_salary_cents: 900_000,
+                 effective_from: Date.new(2025, 1, 1), effective_to: nil)
     create(:asignacion, liquidacion: liquidacion, template: template, description: 'Base salary',
                         category: 'haber', formula: 'base_salary', formula_version: 1,
                         amount_cents: 1_200_000, position: 1)
@@ -33,6 +37,7 @@ RSpec.describe 'Liquidaciones API', type: :request do
       expect(first['employee_id']).to eq(ana.id)
       expect(first['name']).to eq('Ana García')
       expect(first['period']).to eq('2026-09')
+      expect(first['currency']).to eq('ARS')
       expect(first['haberes_totales_cents']).to eq(1_225_000)
       expect(first['descuentos_totales_cents']).to eq(240_750)
       expect(first['aportes_totales_cents']).to eq(348_000)
@@ -49,8 +54,27 @@ RSpec.describe 'Liquidaciones API', type: :request do
       expect(response).to have_http_status(:ok)
       entry = JSON.parse(response.body)['liquidaciones'].find { |row| row['employee_id'] == bruno.id }
       expect(entry['pending']).to be(true)
+      expect(entry['currency']).to eq('ARS')
       expect(entry['haberes_totales_cents']).to be_nil
       expect(entry['final_salary_cents']).to be_nil
+    end
+
+    it 'derives each run currency from the Job effective for its period' do
+      changing = create(:employee, name: 'Contrato cambiante')
+      create(:job, employee: changing, country: 'AR', currency: 'ARS',
+                   base_salary_cents: 1_000_000,
+                   effective_from: Date.new(2025, 1, 1), effective_to: Date.new(2026, 6, 30))
+      create(:job, employee: changing, country: 'AR', currency: 'USD',
+                   base_salary_cents: 2_000,
+                   effective_from: Date.new(2026, 7, 1), effective_to: nil)
+      create(:liquidacion, employee: changing, period_year: 2026, period_month: 3)
+      create(:liquidacion, employee: changing, period_year: 2026, period_month: 9)
+
+      get '/api/v1/liquidaciones', params: { period: '2026-03', employee_id: changing.id }
+      expect(JSON.parse(response.body)['liquidaciones'].first['currency']).to eq('ARS')
+
+      get '/api/v1/liquidaciones', params: { period: '2026-09', employee_id: changing.id }
+      expect(JSON.parse(response.body)['liquidaciones'].first['currency']).to eq('USD')
     end
 
     it 'filters by employee_id when provided' do
@@ -86,6 +110,7 @@ RSpec.describe 'Liquidaciones API', type: :request do
       expect(detail['employee_id']).to eq(ana.id)
       expect(detail['name']).to eq('Ana García')
       expect(detail['period']).to eq('2026-09')
+      expect(detail['currency']).to eq('ARS')
       expect(detail['haberes_totales_cents']).to eq(1_225_000)
       expect(detail['descuentos_totales_cents']).to eq(240_750)
       expect(detail['aportes_totales_cents']).to eq(348_000)

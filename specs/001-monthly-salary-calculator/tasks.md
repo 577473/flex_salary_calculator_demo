@@ -163,6 +163,39 @@ upstream stand-in.
 
 ---
 
+## Phase 8: Contract currency (display)
+
+Satisfies the constitution's "explicit currency code per amount" by modeling each
+contract's currency on `Job` — a contractual attribute, exactly like
+`base_salary_cents`. Currency is **display-only**: the calculator never reads it,
+and there is no conversion. A run's currency is resolved from the Job effective
+for its period (not snapshotted on `Liquidacion`/`Asignacion`).
+
+- [x] T050 Migration `backend/db/migrate/20261015000000_add_currency_to_jobs.rb`: add `jobs.currency` (ISO 4217), backfill AR→ARS / UY→UYU, `NOT NULL`
+- [x] T051 `Currency` value object (`backend/app/models/currency.rb`): `BY_COUNTRY`, `for_country`
+- [x] T052 `Job`: validate `currency` presence + `/\A[A-Z]{3}\z/`, upcase; independent of `country`
+- [x] T053 Serializers: `EmployeeSerializer` job `currency`; `LiquidacionSerializer` run-level `currency` derived via `PeriodResolver`; controllers eager-load `employee: :jobs`
+- [x] T054 Seeds + `scripts/sample_calculation.rb`: explicit per-contract currency
+- [x] T055 Specs: factory derived currency, `job_spec` currency, new `currency_spec`, `employees_spec`, `liquidaciones_spec` (incl. per-period currency); frontend `money.spec` + view specs
+- [x] T056 Frontend: `formatMoney(cents, currency)` via `Intl.NumberFormat`; views pass run currency
+- [x] T057 Docs propagation: `spec.md`, `data-model.md`, `contracts/api.md`, `docs/API.md`, `docs/ARCHITECTURE.md`, `docs/TESTS.md`, `docs/VALIDATION.md`, `README.md`, `tasks.md`
+- [x] T058 Verify: `bundle exec rspec` (144), `bundle exec rubocop` (clean), `ruby bin/brakeman -q` (0), `cd frontend && npm test` (14), sample script + dev seed
+
+---
+
+## Phase 9: Contract-history calculation tests
+
+Job creation stays out of the calculator's scope; the fixture stands in for the
+upstream system. One employee with two **closed** Jobs and one **open** Job
+proves the calculator resolves the Job covering the requested period and always
+returns the same totals for a given (employee, period), regardless of when asked.
+
+- [x] T059 Golden spec `backend/spec/golden/job_history_spec.rb`: (a) closed Job C across periods; (b) open Job A across periods; (c) closed Job B at its matching period + inclusive month boundaries; historical recalculation is identical; per-period idempotency (one run, no duplicate rows); the calculator never mutates the Job history. Docs: `docs/TESTS.md`, `docs/VALIDATION.md`, `tasks.md`.
+- [x] T060 Seeds: add `Elena Ríos` (two closed Jobs 2025-01..06 / 2025-07..12, then an open Job from 2026-01-01) so the dev DB carries a contract-history employee; keep seeding idempotent. Docs: `ARCHITECTURE.md`, `README.md`, `quickstart.md`, `data-model.md`, `docs/VALIDATION.md`.
+- [x] T061 Sample script `backend/scripts/sample_calculation.rb`: resolve the printed Job by period via `PeriodResolver` (not `jobs.first`), add a contract-history employee (Elena) with two closed + one open contract, and print each contract's effective range. Docs: `README.md`.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies

@@ -19,6 +19,9 @@ class LiquidacionSerializer
         employee_id: liquidacion.employee_id,
         name: liquidacion.employee.name,
         period: period_string(liquidacion),
+        # Display-only: every amount above is in the currency of the Job that
+        # covered this period. Resolved here, never used by the calculator.
+        currency: currency_for(liquidacion),
         haberes_totales_cents: liquidacion.haberes_totales_cents,
         descuentos_totales_cents: liquidacion.descuentos_totales_cents,
         aportes_totales_cents: liquidacion.aportes_totales_cents,
@@ -42,6 +45,12 @@ class LiquidacionSerializer
 
     def period_string(liquidacion)
       format("%04d-%02d", liquidacion.period_year, liquidacion.period_month)
+    end
+
+    # The currency of a run is the contract (Job) currency for its period. It is
+    # derived for display only; the calculator ignores it entirely.
+    def currency_for(liquidacion)
+      PeriodResolver.call(liquidacion.employee, year: liquidacion.period_year, month: liquidacion.period_month)&.currency
     end
   end
 end
