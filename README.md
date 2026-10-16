@@ -130,38 +130,39 @@ bundle exec ruby scripts/sample_calculation.rb 2026-06    # any YYYY-MM
 The single argument is the period in `YYYY-MM` form; it defaults to `2026-03`.
 Try `2026-06` (Extra horas activates) or `2026-12` (Aguinaldo activates) to see
 the conditional formulas change the totals. Try `2025-09` to see Elena paid
-under her **closed** 2025 contract (base `$ 900.000,00`, final `$ 768.500,00`)
+under her **closed** 2025 contract (base `ARS 900.000,00`, final `ARS 768.500,00`)
 rather than her open 2026 one. Amounts are stored as integer cents but rendered
-in the contract currency (`$` for ARS, `UYU` for UYU).
+in the contract currency, labelled with its ISO code (`ARS`, `UYU`).
 
 ### Sample output
 
 ```text
 Salary calculation for period 2026-03
 ================================================================================================================
-Ana García  (job: AR, currency ARS, base salary $ 1.200.000,00, 2025-01-01..open)
+
+Ana García  (job: AR, currency ARS, base salary ARS 1.200.000,00, 2025-01-01..open)
 ----------------------------------------------------------------------------------------------------------------
   CATEGORY   ITEM                     FORMULA                                                            AMOUNT
-  haber      Salario base             base_salary                                                $ 1.200.000,00
-  haber      Bono fijo                country == "AR" ? 5000000 : 250000                            $ 50.000,00
-  haber      Aguinaldo                period_month == 12 ? round(base_salary / 2) : 0                    $ 0,00
-  haber      Extra horas              period_month == 6 ? round(base_salary * 0.1) : 0                   $ 0,00
-  descuento  Descuento legal          round(base_salary * (country == "AR" ? 0.17 : 0.15))         $ 204.000,00
-  descuento  Descuento previsional    round(haberes_totales * 0.03)                                 $ 37.500,00
-  aporte     Aporte empleador         round(base_salary * (country == "AR" ? 0.29 : 0.23))         $ 348.000,00
+  haber      Salario base             base_salary                                              ARS 1.200.000,00
+  haber      Bono fijo                country == "AR" ? 5000000 : 250000                          ARS 50.000,00
+  haber      Aguinaldo                period_month == 12 ? round(base_salary / 2) : 0                  ARS 0,00
+  haber      Extra horas              period_month == 6 ? round(base_salary * 0.1) : 0                 ARS 0,00
+  descuento  Descuento legal          round(base_salary * (country == "AR" ? 0.17 : 0.15))       ARS 204.000,00
+  descuento  Descuento previsional    round(haberes_totales * 0.03)                               ARS 37.500,00
+  aporte     Aporte empleador         round(base_salary * (country == "AR" ? 0.29 : 0.23))       ARS 348.000,00
 ----------------------------------------------------------------------------------------------------------------
-  Haberes totales                                    $ 1.250.000,00
-  Descuentos totales                                   $ 241.500,00
-  Aportes (empleador)                                  $ 348.000,00
-  Salario final                                      $ 1.008.500,00
+  Haberes totales                                  ARS 1.250.000,00
+  Descuentos totales                                 ARS 241.500,00
+  Aportes (empleador)                                ARS 348.000,00
+  Salario final                                    ARS 1.008.500,00
 
 Camila Díaz  (job: UY, currency UYU, base salary UYU 60.000,00, 2025-01-01..open)
   ... (same breakdown; UY rates 15%/23% give final UYU 51.625,00)
 
-Elena Ríos  (job: AR, currency ARS, base salary $ 1.000.000,00, 2026-01-01..open)
-  ... (same breakdown; that open contract gives final $ 848.500,00)
+Elena Ríos  (job: AR, currency ARS, base salary ARS 1.000.000,00, 2026-01-01..open)
+  ... (same breakdown; that open contract gives final ARS 848.500,00)
 
-Amounts are integer minor units (cents) of the contract currency, shown formatted (ARS/UYU).
+Amounts are integer minor units (cents) of the contract currency, labelled with their ISO code (ARS/UYU).
 Data was in-memory only; nothing was persisted.
 ```
 

@@ -88,7 +88,7 @@ implementation.
 
 | Spec | Tests | Covers |
 |------|-------|--------|
-| `money.spec.js` | 5 | `formatMoney`/`formatPeriod`; **null/undefined render as "—"** (pending) while a real `0` still renders as money; amounts formatted in the given currency (ARS/UYU) with an ARS fallback |
+| `money.spec.js` | 5 | `formatMoney`/`formatPeriod`; **null/undefined render as "—"** (pending) while a real `0` still renders as money; amounts labelled with the ISO currency code (ARS/UYU) with an ARS fallback |
 | `liquidacion_detail.spec.js` | 4 | totals rendered as formatted money; items grouped haber→descuento→aporte; pending notice with dashes (no fake zeros); missing-result state with **no fake zeros** |
 | `payroll_list.spec.js` | 5 | loads/renders employees; shows final totals after calculation and reports failures without fake zeros; pending run marked and rendered with dashes; empty state when the period has no results; blocks calculation when no period is selected |
 

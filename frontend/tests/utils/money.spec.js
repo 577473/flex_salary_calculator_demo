@@ -13,8 +13,8 @@ describe('money formatting', () => {
     expect(formatMoney(0, 'ARS')).toContain('0,00')
   })
 
-  it('renders integer cents in the contract currency', () => {
-    expect(formatMoney(1_225_000, 'ARS')).toMatch(/^\$\s?/)
+  it('renders integer cents labelled with the contract currency code', () => {
+    expect(formatMoney(1_225_000, 'ARS')).toContain('ARS')
     expect(formatMoney(1_225_000, 'ARS')).toContain('12.250,00')
     expect(formatMoney(1_225_000, 'UYU')).toContain('UYU')
     expect(formatMoney(1_225_000, 'UYU')).toContain('12.250,00')

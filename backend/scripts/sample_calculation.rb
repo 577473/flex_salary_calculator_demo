@@ -123,10 +123,9 @@ results = CalculateLiquidacion.call(employees: employees, period: period)[:resul
 
 # --- 5. Print a human-readable report --------------------------------------
 # Amounts are stored as integer minor units (cents) of the contract currency;
-# the report renders them the way a reader expects for that currency, e.g.
-# "$ 1.200.000,00" for ARS. This mirrors the frontend's
-# Intl.NumberFormat("es-AR", { style: "currency", currency }).
-CURRENCY_SYMBOLS = { "ARS" => "$", "UYU" => "UYU", "USD" => "US$" }.freeze
+# the report labels each amount with its ISO currency code, e.g.
+# "ARS 1.200.000,00". This mirrors the frontend's
+# Intl.NumberFormat("es-AR", { style: "currency", currency, currencyDisplay: "code" }).
 
 def format_money(cents, currency)
   return "—" if cents.nil?
@@ -135,8 +134,7 @@ def format_money(cents, currency)
   sign = amount.negative? ? "-" : ""
   whole, fraction = amount.abs.divmod(100)
   grouped = whole.to_s.reverse.scan(/\d{1,3}/).join(".").reverse
-  symbol = CURRENCY_SYMBOLS.fetch(currency, currency)
-  "#{sign}#{symbol} #{grouped},#{format('%02d', fraction)}"
+  "#{sign}#{currency} #{grouped},#{format('%02d', fraction)}"
 end
 
 puts
@@ -176,5 +174,5 @@ results.each do |result|
 end
 
 puts
-puts "Amounts are integer minor units (cents) of the contract currency, shown formatted (ARS/UYU)."
+puts "Amounts are integer minor units (cents) of the contract currency, labelled with their ISO code (ARS/UYU)."
 puts "Data was in-memory only; nothing was persisted."

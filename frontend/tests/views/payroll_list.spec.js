@@ -111,7 +111,7 @@ describe('PayrollView (list)', () => {
 
     expect(wrapper.find('[data-testid="empty-state"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="results"]').exists()).toBe(false)
-    expect(wrapper.text()).not.toContain('$')
+    expect(wrapper.text()).not.toContain('ARS')
   })
 
   it('marks a not-yet-calculated run as pending and renders dashes instead of fake zeros', async () => {

@@ -202,7 +202,7 @@ Amounts are stored as integer minor units (cents); the presentation layer render
 them in the contract currency. The frontend already did this
 (`formatMoney(cents, currency)`); the sample script now matches.
 
-- [x] T062 `backend/scripts/sample_calculation.rb`: render every printed amount in the contract currency (`$ 1.200.000,00` for ARS, `UYU 60.000,00` for UYU) — base salary, per-item amounts and totals — mirroring the frontend's `Intl.NumberFormat("es-AR", { style: "currency" })`; null amounts render as `—`. Docs: `README.md`.
+- [x] T062 `backend/scripts/sample_calculation.rb`: render every printed amount labelled with its ISO currency code (`ARS 1.200.000,00`, `UYU 60.000,00`) — base salary, per-item amounts and totals — mirroring the frontend's `Intl.NumberFormat("es-AR", { style: "currency", currencyDisplay: "code" })`; null amounts render as `—`. Docs: `README.md`.
 
 ---
 
